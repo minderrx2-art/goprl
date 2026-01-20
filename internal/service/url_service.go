@@ -32,12 +32,10 @@ func (s *URLService) Shorten(ctx context.Context, originalURL string) (*domain.U
 		CreatedAt:   time.Now(),
 	}
 
-	// 1. Save to database
 	if err := s.store.CreateURL(ctx, url); err != nil {
 		return nil, err
 	}
 
-	// 2. Update cache
 	if err := s.cache.Set(ctx, ShortURL, url); err != nil {
 		// Add logging later
 	}
