@@ -49,6 +49,6 @@ func (h *Handler) handleResolve(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
-
-	http.Redirect(w, r, url.OriginalURL, http.StatusFound)
+	// 302 StatusMovedPermanently, caches redirect and skips server entirely on subsequent requests
+	http.Redirect(w, r, url.OriginalURL, http.StatusMovedPermanently)
 }
