@@ -19,7 +19,7 @@ func NewStore(db *sql.DB) *Store {
 
 func (s *Store) CreateURL(ctx context.Context, url *domain.URL) error {
 	query := `INSERT INTO urls (short_code, original_url, expires_at) VALUES ($1, $2, $3) RETURNING id, created_at`
-	row := s.db.QueryRowContext(ctx, query, url.ShortCode, url.OriginalURL, url.ExpiresAt)
+	row := s.db.QueryRowContext(ctx, query, url.ShortURL, url.OriginalURL, url.ExpiresAt)
 	err := row.Scan(&url.ID, &url.CreatedAt)
 
 	if err != nil {
@@ -32,12 +32,12 @@ func (s *Store) CreateURL(ctx context.Context, url *domain.URL) error {
 	return nil
 }
 
-func (s *Store) GetByShortCode(ctx context.Context, shortCode string) (*domain.URL, error) {
+func (s *Store) GetByShortURL(ctx context.Context, ShortURL string) (*domain.URL, error) {
 	query := `SELECT id, short_code, original_url, expires_at, created_at FROM urls WHERE short_code = $1`
-	row := s.db.QueryRowContext(ctx, query, shortCode)
+	row := s.db.QueryRowContext(ctx, query, ShortURL)
 
 	var url domain.URL
-	err := row.Scan(&url.ID, &url.ShortCode, &url.OriginalURL, &url.ExpiresAt, &url.CreatedAt)
+	err := row.Scan(&url.ID, &url.ShortURL, &url.OriginalURL, &url.ExpiresAt, &url.CreatedAt)
 
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, err
