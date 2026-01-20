@@ -6,15 +6,19 @@ import (
 	"goprl/internal/domain"
 	"time"
 
-	"github.com/go-redis/redis/v8"
+	goredis "github.com/go-redis/redis/v8"
 )
 
 type Cache struct {
-	rdb *redis.Client
+	rdb *goredis.Client
 }
 
-func NewCache(rdb *redis.Client) *Cache {
+func NewCache(rdb *goredis.Client) *Cache {
 	return &Cache{rdb: rdb}
+}
+
+func (c *Cache) Close() error {
+	return c.rdb.Close()
 }
 
 func (c *Cache) Get(ctx context.Context, key string) (*domain.URL, error) {

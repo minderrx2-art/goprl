@@ -1,33 +1,27 @@
 package main
 
 import (
-	"database/sql"
 	"fmt"
 	"goprl/internal/api"
 	"goprl/internal/service"
-	"goprl/internal/store/postgres"
-	"goprl/internal/store/redis"
+	"goprl/internal/store"
 	"net/http"
-
-	goredis "github.com/go-redis/redis/v8"
-	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 func main() {
-	db, err := sql.Open("pgx", "postgres://minvy:pass@localhost:5432/goprl")
+	postgresStore, err := store.NewPostgresStore("postgres://minvy:pass@localhost:5432/goprl")
 	if err != nil {
 		panic(err)
 	}
-	store := postgres.NewStore(db)
-
-	opt, err := goredis.ParseURL("redis://:pass@localhost:6379/0")
+	redisStore, err := store.NewRedisStore("redis://:pass@localhost:6379/0")
 	if err != nil {
 		panic(err)
 	}
-	rdb := goredis.NewClient(opt)
-	cache := redis.NewCache(rdb)
 
-	service := service.NewURLService(store, cache)
+	defer postgresStore.Close()
+	defer redisStore.Close()
+
+	service := service.NewURLService(postgresStore, redisStore)
 	handler := api.NewHandler(service)
 
 	mux := http.NewServeMux()

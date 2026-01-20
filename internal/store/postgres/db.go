@@ -17,6 +17,10 @@ func NewStore(db *sql.DB) *Store {
 	return &Store{db: db}
 }
 
+func (s *Store) Close() error {
+	return s.db.Close()
+}
+
 func (s *Store) CreateURL(ctx context.Context, url *domain.URL) error {
 	query := `INSERT INTO urls (short_code, original_url, expires_at) VALUES ($1, $2, $3) RETURNING id, created_at`
 	row := s.db.QueryRowContext(ctx, query, url.ShortURL, url.OriginalURL, url.ExpiresAt)
