@@ -1,15 +1,15 @@
 package main
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"goprl/internal/api"
-	"goprl/internal/domain"
 	"goprl/internal/service"
 	"goprl/internal/store/postgres"
+	"goprl/internal/store/redis"
 	"net/http"
 
+	goredis "github.com/go-redis/redis/v8"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -18,11 +18,16 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-
 	store := postgres.NewStore(db)
-	mockCache := &mockCache{}
 
-	service := service.NewURLService(store, mockCache)
+	opt, err := goredis.ParseURL("redis://:pass@localhost:6379/0")
+	if err != nil {
+		panic(err)
+	}
+	rdb := goredis.NewClient(opt)
+	cache := redis.NewCache(rdb)
+
+	service := service.NewURLService(store, cache)
 	handler := api.NewHandler(service)
 
 	mux := http.NewServeMux()
@@ -33,13 +38,4 @@ func main() {
 		panic(err)
 	}
 
-}
-
-type mockCache struct{}
-
-func (n *mockCache) Get(ctx context.Context, key string) (*domain.URL, error) {
-	return nil, nil
-}
-func (n *mockCache) Set(ctx context.Context, key string, value *domain.URL) error {
-	return nil
 }
