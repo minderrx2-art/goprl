@@ -18,6 +18,7 @@ type URLService struct {
 	logger *slog.Logger
 }
 
+// URL service factory
 func NewURLService(store domain.URLStore, cache domain.URLCache, logger *slog.Logger) *URLService {
 	return &URLService{
 		store:  store,
@@ -61,7 +62,10 @@ func (s *URLService) Resolve(ctx context.Context, code string) (*domain.URL, err
 	// Fast cache poke
 	url, err := s.cache.Get(ctx, code)
 	if err == nil && url != nil {
+		s.logger.Info("Cache hit", "code", code)
 		return url, nil
+	} else {
+		s.logger.Info("Cache miss", "code", code)
 	}
 
 	// Slow database lookup
@@ -69,7 +73,6 @@ func (s *URLService) Resolve(ctx context.Context, code string) (*domain.URL, err
 	if err != nil {
 		return nil, errors.New("URL not found")
 	}
-
 	// Add to cache for next time
 	_ = s.cache.Set(ctx, code, url)
 
