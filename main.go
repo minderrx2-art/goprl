@@ -31,8 +31,10 @@ func main() {
 	handler.RegisterRoutes(mux)
 
 	fmt.Println("URL Shortener starting on http://localhost:8080")
-
-	if err := http.ListenAndServe(":8080", api.RequestIDMiddleware(api.LoggingMiddleware(logger)(mux))); err != nil {
+	if err := http.ListenAndServe(":8080",
+		api.RequestIDMiddleware(
+			api.LoggingMiddleware(logger)(mux),
+		)); err != nil {
 		panic(err)
 	}
 }
