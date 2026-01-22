@@ -21,6 +21,7 @@ func RequestIDMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// Capture logger in closure and return the middleware handler
 func LoggingMiddleware(logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
