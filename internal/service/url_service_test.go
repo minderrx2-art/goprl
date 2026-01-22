@@ -7,6 +7,38 @@ import (
 	"testing"
 )
 
+type mockStore struct {
+	data      map[string]*domain.URL
+	err       error
+	callCount int
+}
+
+func (m *mockStore) CreateURL(ctx context.Context, url *domain.URL) error {
+	m.callCount++
+	if m.callCount <= 2 {
+		return domain.ErrCollision
+	}
+	return m.err
+}
+
+func (m *mockStore) GetByShortURL(ctx context.Context, code string) (*domain.URL, error) {
+	return m.data[code], m.err
+}
+
+type mockCache struct {
+	data      map[string]*domain.URL
+	setCalled bool
+	err       error
+}
+
+func (m *mockCache) Get(ctx context.Context, key string) (*domain.URL, error) {
+	return m.data[key], nil
+}
+
+func (m *mockCache) Set(ctx context.Context, key string, value *domain.URL) error {
+	m.setCalled = true
+	return m.err
+}
 func TestGenerateShortURL(t *testing.T) {
 	// 1. Arrange (Define what we want)
 	length := 6
@@ -42,29 +74,6 @@ func TestGenerateShortURL(t *testing.T) {
 	}
 }
 
-type mockStore struct {
-	data map[string]*domain.URL
-	err  error
-}
-
-func (m *mockStore) CreateURL(ctx context.Context, url *domain.URL) error { return m.err }
-func (m *mockStore) GetByShortURL(ctx context.Context, code string) (*domain.URL, error) {
-	return m.data[code], m.err
-}
-
-type mockCache struct {
-	data      map[string]*domain.URL
-	setCalled bool
-	err       error
-}
-
-func (m *mockCache) Get(ctx context.Context, key string) (*domain.URL, error) {
-	return m.data[key], nil
-}
-func (m *mockCache) Set(ctx context.Context, key string, value *domain.URL) error {
-	m.setCalled = true
-	return m.err
-}
 func TestResolve_CacheHit(t *testing.T) {
 	ctx := context.Background()
 
@@ -73,7 +82,7 @@ func TestResolve_CacheHit(t *testing.T) {
 	store := &mockStore{data: map[string]*domain.URL{"abc": testURL}}
 	cache := &mockCache{data: map[string]*domain.URL{"abc": testURL}}
 
-	service := NewURLService(store, cache)
+	service := NewURLService(store, cache, nil)
 
 	url, err := service.Resolve(ctx, "abc")
 
@@ -92,12 +101,12 @@ func TestResolve_CacheHit(t *testing.T) {
 
 func TestResolve_CacheMiss_DBHit(t *testing.T) {
 	ctx := context.Background()
-	testURL := &domain.URL{ShortURL: "abc", OriginalURL: "https://db.com"}
 
+	testURL := &domain.URL{ShortURL: "abc", OriginalURL: "https://db.com"}
 	cache := &mockCache{data: map[string]*domain.URL{}} // Empty cache
 	store := &mockStore{data: map[string]*domain.URL{"abc": testURL}}
 
-	svc := NewURLService(store, cache)
+	svc := NewURLService(store, cache, nil)
 
 	url, err := svc.Resolve(ctx, "abc")
 
@@ -116,12 +125,12 @@ func TestResolve_CacheMiss_DBHit(t *testing.T) {
 
 func TestShorten_DBError(t *testing.T) {
 	ctx := context.Background()
-	testURL := &domain.URL{OriginalURL: "https://db.com"}
 
+	testURL := &domain.URL{OriginalURL: "https://db.com"}
 	store := &mockStore{err: errors.New("db error")}
 	cache := &mockCache{}
 
-	svc := NewURLService(store, cache)
+	svc := NewURLService(store, cache, nil)
 
 	_, err := svc.Shorten(ctx, testURL.OriginalURL)
 
@@ -130,16 +139,23 @@ func TestShorten_DBError(t *testing.T) {
 	}
 }
 
-// func TestShorten_CacheError(t *testing.T) {
-// 	ctx := context.Background()
-// 	testURL := &domain.URL{OriginalURL: "https://db.com"}
+func TestShorten_Collision(t *testing.T) {
+	ctx := context.Background()
 
-// 	store := &mockStore{}
-// 	cache := &mockCache{err: fmt.Errorf("cache error")}
+	testURL := &domain.URL{OriginalURL: "https://db.com"}
+	store := &mockStore{}
+	cache := &mockCache{}
 
-// 	svc := NewURLService(store, cache)
+	svc := NewURLService(store, cache, nil)
 
-// 	_, err := svc.Shorten(ctx, testURL.OriginalURL)
-//
-//	Check if logging was called
-// }
+	_, err := svc.Shorten(ctx, testURL.OriginalURL)
+
+	if err != nil {
+		t.Errorf("Expected success after 2 retries, got %v", err)
+	}
+
+	if store.callCount != 3 {
+		t.Errorf("Expected 3 calls total, got %d", store.callCount)
+	}
+
+}
