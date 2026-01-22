@@ -18,6 +18,12 @@ func NewHandler(service *service.URLService) *Handler {
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /shorten", h.handleShorten)
 	mux.HandleFunc("GET /{code}", h.handleResolve)
+	mux.HandleFunc("GET /health", h.handleHealth)
+}
+
+func (h *Handler) handleHealth(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("OK"))
 }
 
 func (h *Handler) handleShorten(w http.ResponseWriter, r *http.Request) {
