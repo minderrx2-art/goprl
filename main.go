@@ -7,9 +7,12 @@ import (
 	"goprl/internal/store"
 	"goprl/internal/store/postgres"
 	"goprl/internal/store/redis"
+
 	"log/slog"
 	"net/http"
 	"os"
+
+	"github.com/joho/godotenv"
 )
 
 func main() {
@@ -28,6 +31,26 @@ func main() {
 	}
 }
 
+type Config struct {
+	DatabaseURL string
+	RedisURL    string
+}
+
+func LoadConfig() (*Config, error) {
+	_ = godotenv.Load()
+	var DatabaseURL, RedisURL string
+	if DatabaseURL = os.Getenv("DATABASE_URL"); DatabaseURL == "" {
+		return nil, fmt.Errorf("DATABASE_URL is not set")
+	}
+	if RedisURL = os.Getenv("REDIS_URL"); RedisURL == "" {
+		return nil, fmt.Errorf("REDIS_URL is not set")
+	}
+	return &Config{
+		DatabaseURL: DatabaseURL,
+		RedisURL:    RedisURL,
+	}, nil
+}
+
 type app struct {
 	postgresStore *postgres.Store
 	redisStore    *redis.Cache
@@ -36,14 +59,21 @@ type app struct {
 }
 
 func buildApp() *app {
-	postgresStore, err := store.NewPostgresStore("postgres://minvy:pass@localhost:5432/goprl")
+	config, err := LoadConfig()
+	if err != nil {
+		panic("ENV: " + err.Error())
+	}
+
+	postgresStore, err := store.NewPostgresStore(config.DatabaseURL)
 	if err != nil {
 		panic("POSTGRES: " + err.Error())
 	}
-	redisStore, err := store.NewRedisStore("redis://:pass@localhost:6379/0")
+
+	redisStore, err := store.NewRedisStore(config.RedisURL)
 	if err != nil {
 		panic("REDIS: " + err.Error())
 	}
+
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	service := service.NewURLService(postgresStore, redisStore, logger)
 	handler := api.NewHandler(service)
