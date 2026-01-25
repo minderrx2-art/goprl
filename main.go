@@ -22,8 +22,8 @@ func main() {
 	mux := http.NewServeMux()
 	app.handler.RegisterRoutes(mux)
 
-	fmt.Println("URL Shortener starting on http://localhost:8080")
-	if err := http.ListenAndServe(":8080",
+	fmt.Println("URL Shortener starting on http://localhost:" + app.config.port)
+	if err := http.ListenAndServe(":"+app.config.port,
 		api.RequestIDMiddleware(
 			api.LoggingMiddleware(app.logger)(mux),
 		)); err != nil {
@@ -31,23 +31,28 @@ func main() {
 	}
 }
 
-type Config struct {
-	DatabaseURL string
-	RedisURL    string
+type config struct {
+	databaseURL string
+	redisURL    string
+	port        string
 }
 
-func LoadConfig() (*Config, error) {
+func LoadConfig() (*config, error) {
 	_ = godotenv.Load()
-	var DatabaseURL, RedisURL string
-	if DatabaseURL = os.Getenv("DATABASE_URL"); DatabaseURL == "" {
+	var databaseURL, redisURL, port string
+	if port = os.Getenv("PORT"); port == "" {
+		port = "8080"
+	}
+	if databaseURL = os.Getenv("DATABASE_URL"); databaseURL == "" {
 		return nil, fmt.Errorf("DATABASE_URL is not set")
 	}
-	if RedisURL = os.Getenv("REDIS_URL"); RedisURL == "" {
+	if redisURL = os.Getenv("REDIS_URL"); redisURL == "" {
 		return nil, fmt.Errorf("REDIS_URL is not set")
 	}
-	return &Config{
-		DatabaseURL: DatabaseURL,
-		RedisURL:    RedisURL,
+	return &config{
+		databaseURL: databaseURL,
+		redisURL:    redisURL,
+		port:        port,
 	}, nil
 }
 
@@ -56,6 +61,7 @@ type app struct {
 	redisStore    *redis.Cache
 	logger        *slog.Logger
 	handler       *api.Handler
+	config        *config
 }
 
 func buildApp() *app {
@@ -64,12 +70,12 @@ func buildApp() *app {
 		panic("ENV: " + err.Error())
 	}
 
-	postgresStore, err := store.NewPostgresStore(config.DatabaseURL)
+	postgresStore, err := store.NewPostgresStore(config.databaseURL)
 	if err != nil {
 		panic("POSTGRES: " + err.Error())
 	}
 
-	redisStore, err := store.NewRedisStore(config.RedisURL)
+	redisStore, err := store.NewRedisStore(config.redisURL)
 	if err != nil {
 		panic("REDIS: " + err.Error())
 	}
@@ -77,11 +83,13 @@ func buildApp() *app {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	service := service.NewURLService(postgresStore, redisStore, logger)
 	handler := api.NewHandler(service)
+
 	return &app{
 		postgresStore: postgresStore,
 		redisStore:    redisStore,
 		logger:        logger,
 		handler:       handler,
+		config:        config,
 	}
 }
 
