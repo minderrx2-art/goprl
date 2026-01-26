@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"goprl/internal/api"
 	"goprl/internal/config"
@@ -9,7 +10,10 @@ import (
 	"goprl/internal/store/postgres"
 	"goprl/internal/store/redis"
 	"log/slog"
+	"net/http"
 	"os"
+	"os/signal"
+	"time"
 )
 
 type app struct {
@@ -42,6 +46,40 @@ func NewApp(config *config.Config) (*app, error) {
 		Handler:       handler,
 		Config:        config,
 	}, nil
+}
+
+func (a *app) Run() error {
+	mux := http.NewServeMux()
+	a.Handler.RegisterRoutes(mux)
+	srv := &http.Server{
+		Addr:    ":" + a.Config.Port,
+		Handler: api.RequestIDMiddleware(api.LoggingMiddleware(a.Logger)(mux)),
+	}
+	srvErrors := make(chan error, 1)
+	shutdownChan := make(chan os.Signal, 1)
+	signal.Notify(shutdownChan, os.Interrupt)
+
+	go func() {
+		a.Logger.Info("URL Shortener starting on http://localhost:" + a.Config.Port)
+		// Wait for error and push it onto error channel
+		srvErrors <- srv.ListenAndServe()
+	}()
+
+	// Blocks and waits for any of the selected channels to send a value
+	select {
+	case err := <-srvErrors:
+		a.Logger.Error("server listener failure", "error", err)
+		return err
+	case sig := <-shutdownChan:
+		a.Logger.Info("shutdown signal received", "signal", sig.String())
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := srv.Shutdown(ctx); err != nil {
+			a.Logger.Error("server shutdown failed", "error", err)
+			return err
+		}
+	}
+	return nil
 }
 
 func (a *app) Close() {
