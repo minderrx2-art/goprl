@@ -38,6 +38,7 @@ func (s *URLService) Shorten(ctx context.Context, originalURL string) (*domain.U
 			OriginalURL: originalURL,
 			ShortURL:    shortURL,
 			CreatedAt:   time.Now(),
+			ExpiresAt:   time.Now().Add(24 * time.Hour),
 		}
 
 		if err := s.store.CreateURL(ctx, url); errors.Is(err, domain.ErrCollision) {

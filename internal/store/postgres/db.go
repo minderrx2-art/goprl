@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"goprl/internal/domain"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -49,6 +50,10 @@ func (s *Store) GetByShortURL(ctx context.Context, ShortURL string) (*domain.URL
 
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, domain.ErrURLNotFound
+	}
+
+	if url.ExpiresAt.Before(time.Now()) {
+		return nil, domain.ErrURLExpired
 	}
 
 	return &url, nil

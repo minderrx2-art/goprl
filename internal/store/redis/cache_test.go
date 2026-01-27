@@ -22,13 +22,13 @@ func TestCache_SetGet(t *testing.T) {
 	rdb := redis.NewClient(&redis.Options{
 		Addr: mr.Addr(),
 	})
-
+	expiry := time.Now().Add(24 * time.Hour)
 	store := NewCache(rdb)
 	if err := store.Set(ctx, "test", &domain.URL{
 		ShortURL:    "abc",
 		OriginalURL: "https://google.com",
 		CreatedAt:   time.Now(),
-		ExpiresAt:   nil,
+		ExpiresAt:   expiry,
 	}); err != nil {
 		t.Fatalf("got unexpected error: %v", err)
 	}

@@ -49,15 +49,16 @@ func TestCreateURL(t *testing.T) {
 	rows := sqlmock.NewRows([]string{"id", "created_at"}).
 		AddRow(1, time.Now())
 
+	expiry := time.Now().Add(24 * time.Hour)
 	mock.ExpectQuery("INSERT INTO urls \\(short_code, original_url, expires_at\\) VALUES \\(\\$1, \\$2, \\$3\\) RETURNING id, created_at").
-		WithArgs("abc", "https://google.com", nil).
+		WithArgs("abc", "https://google.com", expiry).
 		WillReturnRows(rows)
 
 	mockURL := &domain.URL{
 		ShortURL:    "abc",
 		OriginalURL: "https://google.com",
 		CreatedAt:   time.Now(),
-		ExpiresAt:   nil,
+		ExpiresAt:   expiry,
 	}
 
 	err = store.CreateURL(ctx, mockURL)

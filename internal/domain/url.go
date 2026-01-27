@@ -8,13 +8,14 @@ import (
 
 var ErrURLNotFound = errors.New("URL not found")
 var ErrCollision = errors.New("URL collision detected")
+var ErrURLExpired = errors.New("URL expired")
 
 type URL struct {
-	ID          int64      `json:"id"`
-	OriginalURL string     `json:"original_url"`
-	ShortURL    string     `json:"short_code"`
-	CreatedAt   time.Time  `json:"created_at"`
-	ExpiresAt   *time.Time `json:"expires_at,omitempty"`
+	ID          int64     `json:"id"`
+	OriginalURL string    `json:"original_url"`
+	ShortURL    string    `json:"short_code"`
+	CreatedAt   time.Time `json:"created_at"`
+	ExpiresAt   time.Time `json:"expires_at,omitempty"`
 }
 
 type URLStore interface {
