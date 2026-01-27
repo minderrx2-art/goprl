@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"syscall"
 	"time"
 )
 
@@ -56,8 +57,10 @@ func (a *app) Run() error {
 		Handler: api.RequestIDMiddleware(api.LoggingMiddleware(a.Logger)(mux)),
 	}
 	srvErrors := make(chan error, 1)
-	shutdownChan := make(chan os.Signal, 1)
-	signal.Notify(shutdownChan, os.Interrupt)
+	signalChan := make(chan os.Signal, 1)
+
+	signal.Notify(signalChan, os.Interrupt)
+	signal.Notify(signalChan, syscall.SIGTERM)
 
 	go func() {
 		a.Logger.Info("URL Shortener starting on http://localhost:" + a.Config.Port)
@@ -70,7 +73,7 @@ func (a *app) Run() error {
 	case err := <-srvErrors:
 		a.Logger.Error("server listener failure", "error", err)
 		return err
-	case sig := <-shutdownChan:
+	case sig := <-signalChan:
 		a.Logger.Info("shutdown signal received", "signal", sig.String())
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
