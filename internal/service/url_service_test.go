@@ -5,6 +5,7 @@ import (
 	"errors"
 	"goprl/internal/domain"
 	"testing"
+	"time"
 )
 
 type mockStore struct {
@@ -39,6 +40,11 @@ func (m *mockCache) Set(ctx context.Context, key string, value *domain.URL) erro
 	m.setCalled = true
 	return m.err
 }
+
+func (m *mockCache) Allow(ctx context.Context, key string, limit int, window time.Duration) error {
+	return m.err
+}
+
 func TestGenerateShortURL(t *testing.T) {
 	// 1. Arrange (Define what we want)
 	length := 6

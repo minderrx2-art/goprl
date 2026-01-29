@@ -42,3 +42,26 @@ func (c *Cache) Set(ctx context.Context, key string, value *domain.URL) error {
 	// tweak expiry later
 	return c.rdb.Set(ctx, key, data, time.Hour).Err()
 }
+
+// Fixed window rate limiter
+func (c *Cache) Allow(ctx context.Context, key string, limit int, window time.Duration) error {
+	fullKey := "rate_limit:" + key
+
+	n, err := c.rdb.Incr(ctx, fullKey).Result()
+	if err != nil {
+		return err
+	}
+
+	if n == 1 {
+		err = c.rdb.Expire(ctx, fullKey, window).Err()
+		if err != nil {
+			return err
+		}
+	}
+
+	if n > int64(limit) {
+		return domain.ErrRateLimitExceeded
+	}
+
+	return nil
+}

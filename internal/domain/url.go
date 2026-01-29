@@ -9,6 +9,7 @@ import (
 var ErrURLNotFound = errors.New("URL not found")
 var ErrCollision = errors.New("URL collision detected")
 var ErrURLExpired = errors.New("URL expired")
+var ErrRateLimitExceeded = errors.New("rate limit exceeded")
 
 type URL struct {
 	ID          int64     `json:"id"`
@@ -26,4 +27,5 @@ type URLStore interface {
 type URLCache interface {
 	Get(ctx context.Context, key string) (*URL, error)
 	Set(ctx context.Context, key string, value *URL) error
+	Allow(ctx context.Context, key string, limit int, window time.Duration) error
 }
