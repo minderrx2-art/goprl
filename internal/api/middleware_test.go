@@ -1,11 +1,13 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"goprl/internal/domain"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -34,14 +36,24 @@ func TestRequestIDMiddleware(t *testing.T) {
 }
 
 func TestLoggingMiddleware(t *testing.T) {
-	logger := slog.Default()
+	var buf bytes.Buffer
+	// We link the logger to the buffer 'buf' so any logs written go into 'buf'
+	logger := slog.New(slog.NewTextHandler(&buf, nil))
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
 
 	handler := LoggingMiddleware(logger)(next)
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest("GET", "/test-url", nil)
 	rr := httptest.NewRecorder()
 
 	handler.ServeHTTP(rr, req)
+
+	output := buf.String()
+	if !strings.Contains(output, "method=GET") {
+		t.Errorf("expected log to contain 'method=GET', got %s", output)
+	}
+	if !strings.Contains(output, "url=/test-url") {
+		t.Errorf("expected log to contain 'url=/test-url', got %s", output)
+	}
 }
 
 func TestRateLimitMiddleware(t *testing.T) {
