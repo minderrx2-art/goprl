@@ -20,8 +20,8 @@ func TestGetByShortURL(t *testing.T) {
 	store := NewStore(db)
 	ctx := context.Background()
 
-	rows := sqlmock.NewRows([]string{"id", "short_code", "original_url", "created_at", "expires_at"}).
-		AddRow(1, "abc", "https://google.com", time.Now(), time.Now().Add(24*time.Hour))
+	rows := sqlmock.NewRows([]string{"id", "short_code", "original_url", "expires_at", "created_at"}).
+		AddRow(1, "abc", "https://google.com", time.Now().Add(24*time.Hour), time.Now())
 
 	mock.ExpectQuery("SELECT id, short_code, original_url, expires_at, created_at FROM urls WHERE short_code = \\$1").
 		WithArgs("abc").

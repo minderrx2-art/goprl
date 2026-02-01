@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"goprl/internal/domain"
+	"io"
+	"log/slog"
 	"testing"
 	"time"
 )
@@ -80,8 +82,9 @@ func TestResolve_CacheHit(t *testing.T) {
 
 	store := &mockStore{data: map[string]*domain.URL{"abc": testURL}}
 	cache := &mockCache{data: map[string]*domain.URL{"abc": testURL}}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	service := NewURLService(store, cache, nil)
+	service := NewURLService(store, cache, logger)
 
 	url, err := service.Resolve(ctx, "abc")
 
@@ -104,8 +107,9 @@ func TestResolve_CacheMiss_DBHit(t *testing.T) {
 	testURL := &domain.URL{ShortURL: "abc", OriginalURL: "https://db.com"}
 	cache := &mockCache{data: map[string]*domain.URL{}} // Empty cache
 	store := &mockStore{data: map[string]*domain.URL{"abc": testURL}}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	svc := NewURLService(store, cache, nil)
+	svc := NewURLService(store, cache, logger)
 
 	url, err := svc.Resolve(ctx, "abc")
 
@@ -128,8 +132,9 @@ func TestShorten_DBError(t *testing.T) {
 	testURL := &domain.URL{OriginalURL: "https://db.com"}
 	store := &mockStore{err: errors.New("db error")}
 	cache := &mockCache{}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	svc := NewURLService(store, cache, nil)
+	svc := NewURLService(store, cache, logger)
 
 	_, err := svc.Shorten(ctx, testURL.OriginalURL)
 
@@ -144,8 +149,9 @@ func TestShorten_Collision(t *testing.T) {
 	testURL := &domain.URL{OriginalURL: "https://db.com"}
 	store := &mockStore{}
 	cache := &mockCache{}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	svc := NewURLService(store, cache, nil)
+	svc := NewURLService(store, cache, logger)
 
 	_, err := svc.Shorten(ctx, testURL.OriginalURL)
 
