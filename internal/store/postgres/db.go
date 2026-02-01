@@ -38,11 +38,11 @@ func (s *Store) CreateURL(ctx context.Context, url *domain.URL) error {
 }
 
 func (s *Store) GetByShortURL(ctx context.Context, ShortURL string) (*domain.URL, error) {
-	query := `SELECT id, short_code, original_url, expires_at, created_at FROM urls WHERE short_code = $1`
+	query := `SELECT id, short_code, original_url, created_at, expires_at FROM urls WHERE short_code = $1`
 	row := s.db.QueryRowContext(ctx, query, ShortURL)
 
 	var url domain.URL
-	err := row.Scan(&url.ID, &url.ShortURL, &url.OriginalURL, &url.ExpiresAt, &url.CreatedAt)
+	err := row.Scan(&url.ID, &url.ShortURL, &url.OriginalURL, &url.CreatedAt, &url.ExpiresAt)
 
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, err
