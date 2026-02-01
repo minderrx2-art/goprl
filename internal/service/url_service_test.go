@@ -46,26 +46,19 @@ func (m *mockCache) Allow(ctx context.Context, key string, limit int, window tim
 }
 
 func TestGenerateShortURL(t *testing.T) {
-	// 1. Arrange (Define what we want)
 	length := 6
 
-	// 2. Act (Run the code)
 	code := generateShortURL(length)
 
-	// 3. Assert (Check if it's right)
-
-	// Check length
 	if len(code) != length {
 		t.Errorf("expected length %d, got %d", length, len(code))
 	}
 
-	// Check if it's random (run it twice and compare)
 	code2 := generateShortURL(length)
 	if code == code2 {
 		t.Errorf("expected random codes, but got two identical: %s", code)
 	}
 
-	// Double check: Is it only using our charset?
 	for _, char := range code {
 		found := false
 		for _, valid := range charset {
