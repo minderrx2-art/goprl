@@ -6,6 +6,7 @@ import (
 )
 
 func main() {
+	// Testing CI/CD
 	config, err := config.NewConfig()
 	if err != nil {
 		panic("CONFIG creation failed: " + err.Error())
