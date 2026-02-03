@@ -1,0 +1,28 @@
+name: Deploy to GCP VM
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy via SSH
+        run: |
+          gcloud compute ssh go-url-shortener \
+            --zone="us-central1-a" \
+            --tunnel-through-iap \
+            --command="cd goprl && git pull && export PUBLIC_IP=34.58.237.103 && sudo docker compose -f docker-compose.prod.yaml up -d --build"

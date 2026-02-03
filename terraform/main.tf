@@ -41,10 +41,23 @@ resource "google_compute_firewall" "allow_ssh" {
     ports    = ["22"]
   }
 
-  source_ranges = ["45.148.56.90/32"]
+  source_ranges = ["${var.my_ip}/32"]
 }
 
-# 4. The Server
+# 4. Allow identity aware proxy for secure SSH (GCP internal)
+resource "google_compute_firewall" "allow_iap_ssh" {
+  name    = "allow-iap-ssh"
+  network = google_compute_network.vpc.name
+
+  allow {
+    protocol = "tcp"
+    ports    = ["22"]
+  }
+  # Google's IAP IP range
+  source_ranges = ["35.235.240.0/20"] 
+}
+
+# 5. The Server
 resource "google_compute_instance" "vm" {
   name         = "go-url-shortener"
   machine_type = "e2-micro"
