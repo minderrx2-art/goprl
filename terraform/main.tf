@@ -59,7 +59,7 @@ resource "google_compute_instance" "vm" {
     access_config {} # Gives it a public IP
   }
 
-  metadata_startup_script = "apt update && apt install -y docker.io docker-compose"
+  metadata_startup_script = "curl -fsSL https://get.docker.com -o get-docker.sh && sh get-docker.sh"
 }
 
 # Return IP of the cloud server
