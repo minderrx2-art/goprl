@@ -13,17 +13,19 @@ import (
 const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
 type URLService struct {
-	store  domain.URLStore
-	cache  domain.URLCache
-	logger *slog.Logger
+	store   domain.URLStore
+	cache   domain.URLCache
+	logger  *slog.Logger
+	baseURL string
 }
 
 // URL service factory
-func NewURLService(store domain.URLStore, cache domain.URLCache, logger *slog.Logger) *URLService {
+func NewURLService(store domain.URLStore, cache domain.URLCache, logger *slog.Logger, baseURL string) *URLService {
 	return &URLService{
-		store:  store,
-		cache:  cache,
-		logger: logger,
+		store:   store,
+		cache:   cache,
+		logger:  logger,
+		baseURL: baseURL,
 	}
 }
 
@@ -56,6 +58,8 @@ func (s *URLService) Shorten(ctx context.Context, originalURL string) (*domain.U
 		s.logger.Error("Failed to set cache", "error", err)
 
 	}
+	// Apply baseURL to shortURL for handler
+	url.ShortURL = s.baseURL + "/" + shortURL
 	return url, nil
 }
 

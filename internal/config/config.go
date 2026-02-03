@@ -11,11 +11,12 @@ type Config struct {
 	DatabaseURL string
 	RedisURL    string
 	Port        string
+	BaseURL     string
 }
 
 func NewConfig() (*Config, error) {
 	_ = godotenv.Load()
-	var databaseURL, redisURL, port string
+	var databaseURL, redisURL, port, baseURL string
 	if port = os.Getenv("PORT"); port == "" {
 		port = "8080"
 	}
@@ -25,9 +26,13 @@ func NewConfig() (*Config, error) {
 	if redisURL = os.Getenv("REDIS_URL"); redisURL == "" {
 		return nil, fmt.Errorf("REDIS_URL is not set")
 	}
+	if baseURL = os.Getenv("BASE_URL"); baseURL == "" {
+		baseURL = "http://localhost:" + port
+	}
 	return &Config{
 		DatabaseURL: databaseURL,
 		RedisURL:    redisURL,
 		Port:        port,
+		BaseURL:     baseURL,
 	}, nil
 }

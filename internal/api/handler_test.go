@@ -41,6 +41,8 @@ func (m *apiMockCache) Allow(ctx context.Context, key string, limit int, window 
 	return nil
 }
 
+var mockBaseURL = "http://test.com"
+
 func TestHandler_HandleHealth(t *testing.T) {
 	h := NewHandler(nil)
 	req := httptest.NewRequest("GET", "/health", nil)
@@ -64,7 +66,7 @@ func TestHandler_HandleShorten(t *testing.T) {
 			return nil
 		},
 	}
-	svc := service.NewURLService(store, &apiMockCache{}, nil)
+	svc := service.NewURLService(store, &apiMockCache{}, nil, mockBaseURL)
 	h := NewHandler(svc)
 
 	body := map[string]string{"url": "https://google.com"}
@@ -78,16 +80,16 @@ func TestHandler_HandleShorten(t *testing.T) {
 		t.Errorf("expected 201, got %d", rr.Code)
 	}
 
-	var resp domain.URL
+	var resp map[string]string
 	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
 
-	if resp.OriginalURL != "https://google.com" {
-		t.Errorf("expected original url %s, got %s", "https://google.com", resp.OriginalURL)
+	if resp["expires_at"] == "" {
+		t.Errorf("expected expires_at, got empty")
 	}
-	if resp.ShortURL == "" {
-		t.Error("expected short code, got empty")
+	if resp["short_url"] == "" {
+		t.Error("expected short url, got empty")
 	}
 }
 
@@ -102,7 +104,7 @@ func TestHandler_HandleResolve(t *testing.T) {
 		},
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	svc := service.NewURLService(store, &apiMockCache{}, logger)
+	svc := service.NewURLService(store, &apiMockCache{}, logger, mockBaseURL)
 	h := NewHandler(svc)
 
 	t.Run("Success", func(t *testing.T) {

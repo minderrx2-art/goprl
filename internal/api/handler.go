@@ -41,10 +41,12 @@ func (h *Handler) handleShorten(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(url)
+	json.NewEncoder(w).Encode(map[string]string{
+		"short_url":  url.ShortURL,
+		"expires_at": url.ExpiresAt.String(),
+	})
 }
 
 func (h *Handler) handleResolve(w http.ResponseWriter, r *http.Request) {

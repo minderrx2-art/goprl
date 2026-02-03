@@ -47,6 +47,8 @@ func (m *mockCache) Allow(ctx context.Context, key string, limit int, window tim
 	return m.err
 }
 
+var mockBaseURL = "http://test.com"
+
 func TestGenerateShortURL(t *testing.T) {
 	length := 6
 
@@ -84,7 +86,7 @@ func TestResolve_CacheHit(t *testing.T) {
 	cache := &mockCache{data: map[string]*domain.URL{"abc": testURL}}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	service := NewURLService(store, cache, logger)
+	service := NewURLService(store, cache, logger, mockBaseURL)
 
 	url, err := service.Resolve(ctx, "abc")
 
@@ -109,7 +111,7 @@ func TestResolve_CacheMiss_DBHit(t *testing.T) {
 	store := &mockStore{data: map[string]*domain.URL{"abc": testURL}}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	svc := NewURLService(store, cache, logger)
+	svc := NewURLService(store, cache, logger, mockBaseURL)
 
 	url, err := svc.Resolve(ctx, "abc")
 
@@ -134,7 +136,7 @@ func TestShorten_DBError(t *testing.T) {
 	cache := &mockCache{}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	svc := NewURLService(store, cache, logger)
+	svc := NewURLService(store, cache, logger, mockBaseURL)
 
 	_, err := svc.Shorten(ctx, testURL.OriginalURL)
 
@@ -151,7 +153,7 @@ func TestShorten_Collision(t *testing.T) {
 	cache := &mockCache{}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	svc := NewURLService(store, cache, logger)
+	svc := NewURLService(store, cache, logger, mockBaseURL)
 
 	_, err := svc.Shorten(ctx, testURL.OriginalURL)
 

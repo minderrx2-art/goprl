@@ -37,7 +37,7 @@ func NewApp(config *config.Config) (*app, error) {
 	}
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	service := service.NewURLService(postgresStore, redisStore, logger)
+	service := service.NewURLService(postgresStore, redisStore, logger, config.BaseURL)
 	handler := api.NewHandler(service)
 
 	return &app{
@@ -63,7 +63,7 @@ func (a *app) Run() error {
 	signal.Notify(signalChan, syscall.SIGTERM)
 
 	go func() {
-		a.Logger.Info("URL Shortener starting on http://localhost:" + a.Config.Port)
+		a.Logger.Info("URL Shortener starting on " + a.Config.Port)
 		// Wait for error and push it onto error channel
 		srvErrors <- srv.ListenAndServe()
 	}()
