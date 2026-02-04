@@ -12,6 +12,17 @@ Features still being worked on:
 - [ ] Add reverse proxy
 - [ ] Add load balancing
 
+
+Run via docker (recommended)
+```
+docker compose up --build
+```
+
+Run raw (Requires SQL + REDIS setup)
+```
+go run main.go 
+```
+
 Run unit tests via:
 ```
 go test ./...
