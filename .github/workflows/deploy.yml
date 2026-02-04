@@ -25,4 +25,4 @@ jobs:
           gcloud compute ssh go-url-shortener \
             --zone="us-central1-a" \
             --tunnel-through-iap \
-            --command="if [ ! -d goprl ]; then git clone https://github.com/${{ github.repository }} goprl; fi && cd goprl && git pull && export PUBLIC_IP=104.198.252.4 && sudo docker compose -f docker-compose.prod.yaml up -d --build"
+            --command="if [ ! -d goprl ]; then git clone https://github.com/${{ github.repository }} goprl; fi && cd goprl && git pull && export PUBLIC_IP=104.198.252.4 && sudo -E docker compose -f docker-compose.prod.yaml up -d --build"

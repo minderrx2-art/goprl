@@ -6,7 +6,7 @@ services:
     environment:
       - DATABASE_URL=postgres://user:password@db:5432/goprl?sslmode=disable
       - REDIS_URL=redis://redis:6379/0
-      - BASE_URL=http://$${PUBLIC_IP}
+      - BASE_URL=http://${PUBLIC_IP}
     depends_on:
       db:
         condition: service_healthy
