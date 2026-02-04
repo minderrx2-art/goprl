@@ -13,12 +13,12 @@ provider "google" {
   zone    = "us-central1-a"
 }
 
-# 1. Create a Network
+# Network
 resource "google_compute_network" "vpc" {
   name = "go-app-network"
 }
 
-# 2. Open HTTP for everyone
+# HTTP for others
 resource "google_compute_firewall" "allow_http" {
   name    = "allow-http"
   network = google_compute_network.vpc.name
@@ -31,7 +31,7 @@ resource "google_compute_firewall" "allow_http" {
   source_ranges = ["0.0.0.0/0"]
 }
 
-# 3. Open SSH ONLY for my IP
+# SSH MY IP
 resource "google_compute_firewall" "allow_ssh" {
   name    = "allow-ssh"
   network = google_compute_network.vpc.name
@@ -44,7 +44,7 @@ resource "google_compute_firewall" "allow_ssh" {
   source_ranges = ["${var.my_ip}/32"]
 }
 
-# 4. Allow identity aware proxy for secure SSH (GCP internal)
+# Secure SSH (GCP internal)
 resource "google_compute_firewall" "allow_iap_ssh" {
   name    = "allow-iap-ssh"
   network = google_compute_network.vpc.name
@@ -57,7 +57,12 @@ resource "google_compute_firewall" "allow_iap_ssh" {
   source_ranges = ["35.235.240.0/20"] 
 }
 
-# 5. The Server
+# Static IP
+resource "google_compute_address" "static_ip" {
+  name = "url-shortener-static-ip"
+}
+
+# Server
 resource "google_compute_instance" "vm" {
   name         = "go-url-shortener"
   machine_type = "e2-micro"
@@ -69,7 +74,9 @@ resource "google_compute_instance" "vm" {
 
   network_interface {
     network = google_compute_network.vpc.name
-    access_config {} # Gives it a public IP
+    access_config {
+      nat_ip = google_compute_address.static_ip.address
+    }
   }
 
   metadata_startup_script = "curl -fsSL https://get.docker.com -o get-docker.sh && sh get-docker.sh && curl -sSO https://dl.google.com/cloudagents/add-google-cloud-ops-agent-repo.sh && bash add-google-cloud-ops-agent-repo.sh --also-install"
@@ -81,5 +88,5 @@ resource "google_compute_instance" "vm" {
 
 # Return IP of the cloud server
 output "ip" {
-  value = google_compute_instance.vm.network_interface[0].access_config[0].nat_ip
+  value = google_compute_address.static_ip.address
 }
