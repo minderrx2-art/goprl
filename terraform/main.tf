@@ -72,7 +72,11 @@ resource "google_compute_instance" "vm" {
     access_config {} # Gives it a public IP
   }
 
-  metadata_startup_script = "curl -fsSL https://get.docker.com -o get-docker.sh && sh get-docker.sh"
+  metadata_startup_script = "curl -fsSL https://get.docker.com -o get-docker.sh && sh get-docker.sh && curl -sSO https://dl.google.com/cloudagents/add-google-cloud-ops-agent-repo.sh && bash add-google-cloud-ops-agent-repo.sh --also-install"
+
+  service_account {
+    scopes = ["cloud-platform"]
+  }
 }
 
 # Return IP of the cloud server
