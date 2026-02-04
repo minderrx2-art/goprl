@@ -12,6 +12,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    logging:
+      driver: gcplogs
 
   db:
     image: postgres:15-alpine
