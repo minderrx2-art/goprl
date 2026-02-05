@@ -30,11 +30,23 @@ jobs:
             --zone="us-central1-a" \
             --tunnel-through-iap \
             --command="
+              set -e
+
               if [ ! -d goprl ]; then
                 git clone https://github.com/${{ github.repository }} goprl
-              fi && \
-              cd goprl && \
-              git pull && \
-              export PUBLIC_IP=\$(curl -H 'Metadata-Flavor: Google' http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip) && \
-              sudo DB_PASSWORD="${{ secrets.DB_PASSWORD }}" REDIS_PASSWORD="${{ secrets.REDIS_PASSWORD }}" PUBLIC_IP=$PUBLIC_IP docker compose -f docker-compose.prod.yaml up -d --build
+              fi
+
+              cd goprl
+              git pull
+
+              PUBLIC_IP=\$(curl -H 'Metadata-Flavor: Google' \
+                http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip)
+
+              cat > .env <<EOF
+              DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+              REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
+              PUBLIC_IP=\$PUBLIC_IP
+              EOF
+
+              sudo docker compose -f docker-compose.prod.yaml up -d --build
             "
