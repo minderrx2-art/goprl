@@ -42,21 +42,21 @@ jobs:
               PUBLIC_IP=\$(curl -H 'Metadata-Flavor: Google' \
                 http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip)
 
-              if [ -n "${{ secrets.DB_PASSWORD }}" ]; then
-                echo "✓ DB_PASSWORD secret is present"
+              if [ -n '${{ secrets.DB_PASSWORD }}' ]; then
+                echo 'DB_PASSWORD secret is present'
               else
-                echo "✗ DB_PASSWORD secret is MISSING"
+                echo 'DB_PASSWORD secret is MISSING'
               fi
 
-              if [ -n "${{ secrets.REDIS_PASSWORD }}" ]; then
-                echo "✓ REDIS_PASSWORD secret is present"
+              if [ -n '${{ secrets.REDIS_PASSWORD }}' ]; then
+                echo 'REDIS_PASSWORD secret is present'
               else
-                echo "✗ REDIS_PASSWORD secret is MISSING"
+                echo 'REDIS_PASSWORD secret is MISSING'
               fi
 
-              echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" > .env
-              echo "REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}" >> .env
-              echo "PUBLIC_IP=\$PUBLIC_IP" >> .env
+              echo 'DB_PASSWORD=${{ secrets.DB_PASSWORD }}' > .env
+              echo 'REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}' >> .env
+              echo 'PUBLIC_IP='\$PUBLIC_IP >> .env
 
               sudo docker compose -f docker-compose.prod.yaml up -d --build
             "
