@@ -47,8 +47,5 @@ jobs:
               printf '%s\n' 'REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}' >> .env
               printf '%s\n' \"PUBLIC_IP=\$PUBLIC_IP\" >> .env
 
-              echo '.env contents:'
-              cat .env
-
-              sudo docker compose -f docker-compose.prod.yaml up -d --build
+              sudo docker compose up -d --build
             "
