@@ -4,8 +4,8 @@ services:
     ports:
       - "80:8080" # 80 is web standard, 8080 is internal
     environment:
-      - DATABASE_URL=postgres://user:password@db:5432/goprl?sslmode=disable
-      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgres://user:${DB_PASSWORD}@db:5432/goprl?sslmode=disable
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
       - BASE_URL=http://${PUBLIC_IP}
     depends_on:
       db:
@@ -19,7 +19,7 @@ services:
     image: postgres:15-alpine
     environment:
       - POSTGRES_USER=user
-      - POSTGRES_PASSWORD=password
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
       - POSTGRES_DB=goprl
     volumes:
       - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -31,8 +31,9 @@ services:
       retries: 5
   redis:
     image: redis:7-alpine
+    command: redis-server --requirepass ${REDIS_PASSWORD}
     healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
+      test: [ "CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5

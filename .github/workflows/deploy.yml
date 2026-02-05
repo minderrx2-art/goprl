@@ -36,5 +36,7 @@ jobs:
               cd goprl && \
               git pull && \
               export PUBLIC_IP=\$(curl -H 'Metadata-Flavor: Google' http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip) && \
+              export DB_PASSWORD="${{ secrets.DB_PASSWORD }}" && \
+              export REDIS_PASSWORD="${{ secrets.REDIS_PASSWORD }}" && \
               sudo -E docker compose -f docker-compose.prod.yaml up -d --build
             "
