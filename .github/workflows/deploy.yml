@@ -35,6 +35,18 @@ jobs:
               if [ ! -d goprl ]; then
                 git clone https://github.com/${{ github.repository }} goprl
               fi
+              
+              if [ -z "${{ secrets.DB_PASSWORD }}" ]; then
+                echo "DB_PASSWORD is empty"
+              else
+                echo "DB_PASSWORD is set"
+              fi
+              
+              if [ -z "${{ secrets.REDIS_PASSWORD }}" ]; then
+                echo "REDIS_PASSWORD is empty"
+              else
+                echo "REDIS_PASSWORD is set"
+              fi
 
               cd goprl
               git pull
@@ -42,11 +54,10 @@ jobs:
               PUBLIC_IP=\$(curl -H 'Metadata-Flavor: Google' \
                 http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip)
 
-              cat > .env <<EOF
-              DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-              REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
-              PUBLIC_IP=\$PUBLIC_IP
-              EOF
+              printf \"DB_PASSWORD=%s\nREDIS_PASSWORD=%s\nPUBLIC_IP=%s\n\" \
+                \"${{ secrets.DB_PASSWORD }}\" \
+                \"${{ secrets.REDIS_PASSWORD }}\" \
+                \"\$PUBLIC_IP\" > .env
 
               sudo docker compose -f docker-compose.prod.yaml up -d --build
             "
