@@ -26,7 +26,7 @@ jobs:
 
       - name: Deploy via SSH
         run: |
-          gcloud compute ssh go-url-shortener \
+          gcloud compute ssh minvy@go-url-shortener \
             --zone="us-central1-a" \
             --tunnel-through-iap \
             --command="
