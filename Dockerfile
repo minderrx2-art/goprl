@@ -12,8 +12,8 @@ COPY . .
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build -o main main.go
 
-# Alpine runtime stage
-FROM alpine:latest
+# Distroless so it runs on my shitty free VM
+FROM gcr.io/distroless/static-debian12
 
 WORKDIR /app
 
