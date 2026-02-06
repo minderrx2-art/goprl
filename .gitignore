@@ -5,7 +5,6 @@
 .terraform.lock.hcl
 
 .env
-.agent
 
 main
 *.log
