@@ -32,7 +32,6 @@ func (s *URLService) Shorten(ctx context.Context, originalURL string) (*domain.U
 	var shortURL string
 	counter, _ := s.cache.Increment(ctx, "counter")
 	shortURL = generateBase62(counter)
-	s.logger.Info("Generated short URL", "counter", counter, "shortURL", shortURL)
 	url = &domain.URL{
 		OriginalURL: originalURL,
 		ShortURL:    shortURL,
