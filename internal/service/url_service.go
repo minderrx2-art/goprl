@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"math/rand"
 	"time"
 
 	"goprl/internal/domain"
@@ -89,14 +88,4 @@ func generateBase62(num int64) string {
 		i--
 	}
 	return string(base62_chars[i+1:])
-}
-
-// Takes random chars from charset
-// Future convert to base62
-func generateShortURL(length int64) string {
-	b := make([]byte, length)
-	for i := range b {
-		b[i] = charset[rand.Intn(len(charset))]
-	}
-	return string(b)
 }

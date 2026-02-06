@@ -49,9 +49,7 @@ func (m *mockCache) Increment(ctx context.Context, key string) (int64, error) {
 var mockBaseURL = "http://test.com"
 
 func TestGenerateShortURL(t *testing.T) {
-	length := int64(6)
-
-	code := generateShortURL(length)
+	code := generateBase62(1)
 
 	for _, char := range code {
 		found := false
