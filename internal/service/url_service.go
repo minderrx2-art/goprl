@@ -10,8 +10,6 @@ import (
 	"goprl/internal/domain"
 )
 
-const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-
 type URLService struct {
 	store   domain.URLStore
 	cache   domain.URLCache
@@ -32,28 +30,20 @@ func NewURLService(store domain.URLStore, cache domain.URLCache, logger *slog.Lo
 func (s *URLService) Shorten(ctx context.Context, originalURL string) (*domain.URL, error) {
 	var url *domain.URL
 	var shortURL string
-	var success bool
-	for i := 0; i < 3; i++ {
-		shortURL = generateShortURL(6)
-
-		url = &domain.URL{
-			OriginalURL: originalURL,
-			ShortURL:    shortURL,
-			CreatedAt:   time.Now(),
-			ExpiresAt:   time.Now().Add(24 * time.Hour),
-		}
-
-		if err := s.store.CreateURL(ctx, url); errors.Is(err, domain.ErrCollision) {
-			continue
-		} else if err != nil {
-			return nil, err
-		}
-		success = true
-		break
+	counter, _ := s.cache.Increment(ctx, "counter")
+	shortURL = generateBase62(counter)
+	s.logger.Info("Generated short URL", "counter", counter, "shortURL", shortURL)
+	url = &domain.URL{
+		OriginalURL: originalURL,
+		ShortURL:    shortURL,
+		CreatedAt:   time.Now(),
+		ExpiresAt:   time.Now().Add(24 * time.Hour),
 	}
-	if !success {
-		return nil, errors.New("Failed to shorten URL")
+
+	if err := s.store.CreateURL(ctx, url); err != nil {
+		return nil, err
 	}
+
 	if err := s.cache.Set(ctx, shortURL, url); err != nil {
 		s.logger.Error("Failed to set cache", "error", err)
 
@@ -84,9 +74,27 @@ func (s *URLService) Resolve(ctx context.Context, code string) (*domain.URL, err
 	return url, nil
 }
 
+const charset = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+// Big-endian
+func generateBase62(num int64) string {
+	if num == 0 {
+		return string(charset[0])
+	}
+	base62_chars := [12]byte{}
+	i := 11
+	for num > 0 {
+		rem := num % 62
+		num /= 62
+		base62_chars[i] = charset[rem]
+		i--
+	}
+	return string(base62_chars[i+1:])
+}
+
 // Takes random chars from charset
 // Future convert to base62
-func generateShortURL(length int) string {
+func generateShortURL(length int64) string {
 	b := make([]byte, length)
 	for i := range b {
 		b[i] = charset[rand.Intn(len(charset))]

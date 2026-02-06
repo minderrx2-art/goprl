@@ -28,9 +28,6 @@ func (s *Store) CreateURL(ctx context.Context, url *domain.URL) error {
 	err := row.Scan(&url.ID, &url.CreatedAt)
 
 	if err != nil {
-		if isUniqueViolation(err) {
-			return domain.ErrCollision
-		}
 		return err
 	}
 

@@ -40,6 +40,7 @@ func (m *apiMockCache) Set(ctx context.Context, key string, value *domain.URL) e
 func (m *apiMockCache) Allow(ctx context.Context, key string, limit int, window time.Duration) error {
 	return nil
 }
+func (m *apiMockCache) Increment(ctx context.Context, key string) (int64, error) { return 0, nil }
 
 var mockBaseURL = "http://test.com"
 

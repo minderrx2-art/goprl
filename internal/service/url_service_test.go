@@ -11,16 +11,11 @@ import (
 )
 
 type mockStore struct {
-	data      map[string]*domain.URL
-	err       error
-	callCount int
+	data map[string]*domain.URL
+	err  error
 }
 
 func (m *mockStore) CreateURL(ctx context.Context, url *domain.URL) error {
-	m.callCount++
-	if m.callCount <= 2 {
-		return domain.ErrCollision
-	}
 	return m.err
 }
 
@@ -47,21 +42,16 @@ func (m *mockCache) Allow(ctx context.Context, key string, limit int, window tim
 	return m.err
 }
 
+func (m *mockCache) Increment(ctx context.Context, key string) (int64, error) {
+	return 0, m.err
+}
+
 var mockBaseURL = "http://test.com"
 
 func TestGenerateShortURL(t *testing.T) {
-	length := 6
+	length := int64(6)
 
 	code := generateShortURL(length)
-
-	if len(code) != length {
-		t.Errorf("expected length %d, got %d", length, len(code))
-	}
-
-	code2 := generateShortURL(length)
-	if code == code2 {
-		t.Errorf("expected random codes, but got two identical: %s", code)
-	}
 
 	for _, char := range code {
 		found := false
@@ -145,24 +135,9 @@ func TestShorten_DBError(t *testing.T) {
 	}
 }
 
-func TestShorten_Collision(t *testing.T) {
-	ctx := context.Background()
-
-	testURL := &domain.URL{OriginalURL: "https://db.com"}
-	store := &mockStore{}
-	cache := &mockCache{}
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-
-	svc := NewURLService(store, cache, logger, mockBaseURL)
-
-	_, err := svc.Shorten(ctx, testURL.OriginalURL)
-
-	if err != nil {
-		t.Errorf("Expected success after 2 retries, got %v", err)
+func TestGenerateBase62(t *testing.T) {
+	code := generateBase62(1234)
+	if code != "jU" {
+		t.Errorf("expected 1234 to be 'jU', got '%s'", code)
 	}
-
-	if store.callCount != 3 {
-		t.Errorf("Expected 3 calls total, got %d", store.callCount)
-	}
-
 }

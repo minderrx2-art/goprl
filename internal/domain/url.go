@@ -7,7 +7,6 @@ import (
 )
 
 var ErrURLNotFound = errors.New("URL not found")
-var ErrCollision = errors.New("URL collision detected")
 var ErrURLExpired = errors.New("URL expired")
 var ErrRateLimitExceeded = errors.New("rate limit exceeded")
 
@@ -28,4 +27,5 @@ type URLCache interface {
 	Get(ctx context.Context, key string) (*URL, error)
 	Set(ctx context.Context, key string, value *URL) error
 	Allow(ctx context.Context, key string, limit int, window time.Duration) error
+	Increment(ctx context.Context, key string) (int64, error)
 }
