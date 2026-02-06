@@ -2,7 +2,7 @@ services:
   app:
     build: .
     ports:
-      - "8080:8080" # 80 is web standard, 8080 is internal
+      - "80:8080" # 80 is web standard, 8080 is internal
     environment:
       - DATABASE_URL=postgres://user:${DB_PASSWORD}@db:5432/goprl?sslmode=disable
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
@@ -12,6 +12,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    logging:
+      driver: gcplogs
   db:
     image: postgres:15-alpine
     environment:
