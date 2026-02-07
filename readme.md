@@ -7,11 +7,16 @@ Features so far implemented:
 - [x] Add cache
 - [x] Add rate limiting
 
-Features still being worked on:
-- [ ] Add analytics
-- [ ] Add reverse proxy
-- [ ] Add load balancing
-
+Required env variables
+```
+DATABASE_URL="postgres://{user}:{REDIS_PASSWORD}@{host}:{port}/{db_name}"
+REDIS_URL="redis://:{password}@{host}:{port}/0"
+```
+Optional (Required for docker)
+```
+REDIS_PASSWORD={password}
+DB_PASSWORD={password}
+```
 
 Run via docker (recommended)
 ```
