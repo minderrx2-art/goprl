@@ -26,8 +26,8 @@ jobs:
 
       - name: Deploy via SSH
         run: |
-          gcloud compute ssh minvy@go-url-shortener \
-            --zone="us-central1-a" \
+          gcloud compute ssh ${{vars.GCP_USER}}@go-url-shortener \
+            --zone="${{vars.GCP_ZONE}}" \
             --tunnel-through-iap \
             --command="
               set -e
@@ -41,11 +41,6 @@ jobs:
 
               PUBLIC_IP=\$(curl -H 'Metadata-Flavor: Google' \
                 http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip)
-
-              echo 'Creating .env file...'
-              printf '%s\n' 'DB_PASSWORD=${{ secrets.DB_PASSWORD }}' > .env
-              printf '%s\n' 'REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}' >> .env
-              printf '%s\n' \"PUBLIC_IP=\$PUBLIC_IP\" >> .env
-
+              
               sudo docker compose -f docker-compose.prod.yaml up --build -d
             "
