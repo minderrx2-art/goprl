@@ -7,6 +7,7 @@ services:
       - DATABASE_URL=postgres://user:${DB_PASSWORD}@db:5432/goprl?sslmode=disable
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
       - BASE_URL=http://${PUBLIC_IP}
+      - RATE_LIMIT=${RATE_LIMIT}
     depends_on:
       db:
         condition: service_healthy
