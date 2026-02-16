@@ -32,9 +32,9 @@ go test ./...
 
 Testing URL shortening:
 ```
-curl -X POST http://localhost:8080/shorten \
+curl -X POST http://www.goprl.co.uk/shorten \
   -H "Content-Type: application/json" \
-  -d '{"url":"http://www.goprl.co.uk"}'
+  -d '{"url":"https://www.google.com"}'
 ```
 Testing redirection via browser:
 ```
