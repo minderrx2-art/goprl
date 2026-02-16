@@ -34,11 +34,11 @@ Testing URL shortening:
 ```
 curl -X POST http://localhost:8080/shorten \
   -H "Content-Type: application/json" \
-  -d '{"url":"https://www.google.com"}'
+  -d '{"url":"http://www.goprl.co.uk"}'
 ```
 Testing redirection via browser:
 ```
-http://localhost:8080/abc123
+http://www.goprl.co.uk/abc123
 ```
 To test within GCP (requires google cloud CLI + account)
 ```
