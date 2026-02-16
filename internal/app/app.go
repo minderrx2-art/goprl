@@ -62,11 +62,18 @@ func (a *app) Run() error {
 	signal.Notify(signalChan, os.Interrupt)
 	signal.Notify(signalChan, syscall.SIGTERM)
 
-	go func() {
-		a.Logger.Info("URL Shortener starting on " + a.Config.Port)
-		// Wait for error and push it onto error channel
-		srvErrors <- srv.ListenAndServe()
-	}()
+	if a.Config.Env == "prod" {
+		go func() {
+			srvErrors <- srv.ListenAndServeTLS(
+				"/etc/letsencrypt/live/goprl.co.uk/fullchain.pem",
+				"/etc/letsencrypt/live/goprl.co.uk/privkey.pem",
+			)
+		}()
+	} else {
+		go func() {
+			srvErrors <- srv.ListenAndServe()
+		}()
+	}
 
 	// Blocks and waits for any of the selected channels to send a value
 	select {
