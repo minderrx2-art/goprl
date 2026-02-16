@@ -14,11 +14,12 @@ type Config struct {
 	Port        string
 	BaseURL     string
 	RateLimit   int
+	Env         string
 }
 
 func NewConfig() (*Config, error) {
 	_ = godotenv.Load()
-	var databaseURL, redisURL, port, baseURL, rateLimit string
+	var databaseURL, redisURL, port, baseURL, rateLimit, env string
 	if port = os.Getenv("PORT"); port == "" {
 		port = "8080"
 	}
@@ -38,11 +39,15 @@ func NewConfig() (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("RATE_LIMIT is not a valid integer")
 	}
+	if env = os.Getenv("ENV"); env == "" {
+		env = "dev"
+	}
 	return &Config{
 		DatabaseURL: databaseURL,
 		RedisURL:    redisURL,
 		Port:        port,
 		BaseURL:     baseURL,
 		RateLimit:   limit,
+		Env:         env,
 	}, nil
 }
