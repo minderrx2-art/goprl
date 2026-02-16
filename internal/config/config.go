@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/joho/godotenv"
 )
@@ -12,11 +13,12 @@ type Config struct {
 	RedisURL    string
 	Port        string
 	BaseURL     string
+	RateLimit   int
 }
 
 func NewConfig() (*Config, error) {
 	_ = godotenv.Load()
-	var databaseURL, redisURL, port, baseURL string
+	var databaseURL, redisURL, port, baseURL, rateLimit string
 	if port = os.Getenv("PORT"); port == "" {
 		port = "8080"
 	}
@@ -29,10 +31,18 @@ func NewConfig() (*Config, error) {
 	if baseURL = os.Getenv("BASE_URL"); baseURL == "" {
 		baseURL = "http://localhost:" + port
 	}
+	if rateLimit = os.Getenv("RATE_LIMIT"); rateLimit == "" {
+		rateLimit = "20"
+	}
+	limit, err := strconv.Atoi(rateLimit)
+	if err != nil {
+		return nil, fmt.Errorf("RATE_LIMIT is not a valid integer")
+	}
 	return &Config{
 		DatabaseURL: databaseURL,
 		RedisURL:    redisURL,
 		Port:        port,
 		BaseURL:     baseURL,
+		RateLimit:   limit,
 	}, nil
 }

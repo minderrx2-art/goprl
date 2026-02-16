@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"context"
+	"goprl/internal/config"
 	"goprl/internal/domain"
 	"log/slog"
 	"net/http"
@@ -59,11 +60,14 @@ func TestLoggingMiddleware(t *testing.T) {
 func TestRateLimitMiddleware(t *testing.T) {
 	t.Run("Allowed", func(t *testing.T) {
 		cache := &apiMockCache{}
+		mockConfig := &config.Config{
+			RateLimit: 20,
+		}
 		next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		})
 
-		handler := RateLimitMiddleware(cache)(next)
+		handler := RateLimitMiddleware(cache, mockConfig)(next)
 		req := httptest.NewRequest("GET", "/", nil)
 		req.RemoteAddr = "127.0.0.1:1234"
 		rr := httptest.NewRecorder()
@@ -76,6 +80,9 @@ func TestRateLimitMiddleware(t *testing.T) {
 	})
 
 	t.Run("RateLimited", func(t *testing.T) {
+		mockConfig := &config.Config{
+			RateLimit: 20,
+		}
 		mockCache := &mockRateLimitCache{
 			allowFunc: func(ctx context.Context, key string, limit int, window time.Duration) error {
 				return domain.ErrRateLimitExceeded
@@ -83,7 +90,7 @@ func TestRateLimitMiddleware(t *testing.T) {
 		}
 		next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
 
-		handler := RateLimitMiddleware(mockCache)(next)
+		handler := RateLimitMiddleware(mockCache, mockConfig)(next)
 		req := httptest.NewRequest("GET", "/", nil)
 		req.RemoteAddr = "127.0.0.1:1234"
 		rr := httptest.NewRecorder()

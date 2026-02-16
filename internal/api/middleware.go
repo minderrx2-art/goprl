@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"goprl/internal/config"
 	"goprl/internal/domain"
 	"log/slog"
 	"net"
@@ -36,11 +37,16 @@ func LoggingMiddleware(logger *slog.Logger) func(http.Handler) http.Handler {
 	}
 }
 
-func RateLimitMiddleware(cache domain.URLCache) func(http.Handler) http.Handler {
+func RateLimitMiddleware(cache domain.URLCache, config *config.Config) func(http.Handler) http.Handler {
+	if config.RateLimit <= 0 {
+		return func(next http.Handler) http.Handler {
+			return next
+		}
+	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ip, _, _ := net.SplitHostPort(r.RemoteAddr)
-			err := cache.Allow(r.Context(), ip, 20, time.Minute)
+			err := cache.Allow(r.Context(), ip, config.RateLimit, time.Minute)
 			if errors.Is(err, domain.ErrRateLimitExceeded) {
 				http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
 				return

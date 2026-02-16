@@ -54,7 +54,7 @@ func (a *app) Run() error {
 	a.Handler.RegisterRoutes(mux)
 	srv := &http.Server{
 		Addr:    ":" + a.Config.Port,
-		Handler: api.RequestIDMiddleware(api.LoggingMiddleware(a.Logger)(api.RateLimitMiddleware(a.RedisStore)(mux))),
+		Handler: api.RequestIDMiddleware(api.LoggingMiddleware(a.Logger)(api.RateLimitMiddleware(a.RedisStore, a.Config)(mux))),
 	}
 	srvErrors := make(chan error, 1)
 	signalChan := make(chan os.Signal, 1)
