@@ -2,7 +2,8 @@ services:
   app:
     image: ghcr.io/minderrx2-art/goprl:latest
     ports:
-      - "80:8080" # 80 is web standard, 8080 is internal
+      - "80:80" # http
+      - "443:443" # https
     environment:
       - DATABASE_URL=postgres://user:${DB_PASSWORD}@db:5432/goprl?sslmode=disable
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
