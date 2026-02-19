@@ -32,13 +32,13 @@ go test ./...
 
 Testing URL shortening:
 ```
-curl -X POST http://www.goprl.co.uk/shorten \
+curl -X POST https://www.goprl.co.uk/shorten \
   -H "Content-Type: application/json" \
   -d '{"url":"https://www.google.com"}'
 ```
 Testing redirection via browser:
 ```
-http://www.goprl.co.uk/abc123
+https://www.goprl.co.uk/abc123
 ```
 To test within GCP (requires google cloud CLI + account)
 ```
