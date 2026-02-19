@@ -9,6 +9,8 @@ services:
       - BASE_URL=http://${PUBLIC_IP}
       - RATE_LIMIT=${RATE_LIMIT}
       - ENV=${ENV}
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
       db:
         condition: service_healthy
