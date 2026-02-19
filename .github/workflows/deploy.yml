@@ -64,6 +64,6 @@ jobs:
               PUBLIC_IP=\$(curl -H 'Metadata-Flavor: Google' \
                 http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip)
               
-              docker compose -f docker-compose.prod.yaml pull
-              docker compose -f docker-compose.prod.yaml up -d
+              sudo docker compose -f docker-compose.prod.yaml pull
+              sudo docker compose -f docker-compose.prod.yaml up -d
             "
