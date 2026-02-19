@@ -8,9 +8,31 @@ on:
 jobs:
   ci:
     uses: ./.github/workflows/ci.yml
-
-  deploy:
+  build:
     needs: ci
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | \
+             docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Build image
+        run: |
+          docker build -t ghcr.io/${{ github.repository }}:latest .
+
+      - name: Push image
+        run: |
+          docker push ghcr.io/${{ github.repository }}:latest
+  deploy:
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -42,5 +64,6 @@ jobs:
               PUBLIC_IP=\$(curl -H 'Metadata-Flavor: Google' \
                 http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip)
               
-              sudo docker compose -f docker-compose.prod.yaml up --build -d
+              docker compose -f docker-compose.prod.yaml pull
+              docker compose -f docker-compose.prod.yaml up -d
             "
