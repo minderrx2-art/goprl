@@ -9,6 +9,7 @@ services:
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
       - BASE_URL=http://${PUBLIC_IP}
       - RATE_LIMIT=${RATE_LIMIT}
+      - PORT=${PORT}
       - ENV=${ENV}
     volumes:
       - /etc/letsencrypt:/etc/letsencrypt:ro
