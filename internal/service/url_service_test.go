@@ -139,3 +139,26 @@ func TestGenerateBase62(t *testing.T) {
 		t.Errorf("expected 1234 to be 'jU', got '%s'", code)
 	}
 }
+
+func TestInvalidUrl(t *testing.T) {
+	urls := []string{
+		"invalid-url",
+		"",
+		"http://localhost",
+		"http://localhost:8080",
+		"http://localhost:8080/",
+		"http://localhost:8080/",
+	}
+	ctx := context.Background()
+	store := &mockStore{}
+	cache := &mockCache{}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	svc := NewURLService(store, cache, logger, mockBaseURL)
+
+	for _, url := range urls {
+		_, err := svc.Shorten(ctx, url)
+		if err == nil {
+			t.Fatalf("expected error for %s, but got nil", url)
+		}
+	}
+}

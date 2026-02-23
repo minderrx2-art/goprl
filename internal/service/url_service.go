@@ -95,7 +95,10 @@ func generateBase62(num int64) string {
 }
 
 func validateUrl(link string) bool {
-	u, err := url.ParseRequestURI(link)
+	if !strings.Contains(link, "://") {
+		link = "http://" + link
+	}
+	u, err := url.Parse(link)
 	if err != nil {
 		return false
 	}
@@ -106,7 +109,7 @@ func validateUrl(link string) bool {
 	if host == "" {
 		return false
 	}
-	if !strings.Contains(host, ".") {
+	if !strings.Contains(host, "www") && len(strings.Split(host, ".")) != 2 {
 		return false
 	}
 	if len(host) < 4 {
