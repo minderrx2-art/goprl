@@ -9,6 +9,8 @@ import (
 var ErrURLNotFound = errors.New("URL not found")
 var ErrURLExpired = errors.New("URL expired")
 var ErrRateLimitExceeded = errors.New("rate limit exceeded")
+var ErrInvalidURL = errors.New("invalid URL")
+var ErrInvalidScheme = errors.New("invalid host")
 
 type URL struct {
 	ID          int64     `json:"id"`

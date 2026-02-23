@@ -28,15 +28,16 @@ func NewURLService(store domain.URLStore, cache domain.URLCache, logger *slog.Lo
 }
 
 func (s *URLService) Shorten(ctx context.Context, originalURL string) (*domain.URL, error) {
-	if !validateUrl(originalURL) {
-		return nil, errors.New("Invalid URL")
+	validURL, err := validateUrl(originalURL)
+	if err != nil {
+		return nil, err
 	}
 	var url *domain.URL
 	var shortURL string
 	counter, _ := s.cache.Increment(ctx, "counter")
 	shortURL = generateBase62(counter)
 	url = &domain.URL{
-		OriginalURL: originalURL,
+		OriginalURL: validURL,
 		ShortURL:    shortURL,
 		CreatedAt:   time.Now(),
 		ExpiresAt:   time.Now().Add(24 * time.Hour),
@@ -94,26 +95,29 @@ func generateBase62(num int64) string {
 	return string(base62_chars[i+1:])
 }
 
-func validateUrl(link string) bool {
+func validateUrl(link string) (string, error) {
 	if !strings.Contains(link, "://") {
-		link = "http://" + link
+		link = "https://" + link
+	}
+	if !strings.Contains(link, "www.") {
+		link = strings.Replace(link, "https://", "https://www.", 1)
 	}
 	u, err := url.Parse(link)
 	if err != nil {
-		return false
+		return "", domain.ErrInvalidURL
 	}
 	if u.Scheme != "http" && u.Scheme != "https" {
-		return false
+		return "", domain.ErrInvalidScheme
 	}
 	host := u.Hostname()
 	if host == "" {
-		return false
+		return "", domain.ErrInvalidURL
 	}
-	if !strings.Contains(host, "www") && len(strings.Split(host, ".")) != 2 {
-		return false
+	if len(strings.Split(host, ".")) != 3 {
+		return "", domain.ErrInvalidURL
 	}
 	if len(host) < 4 {
-		return false
+		return "", domain.ErrInvalidURL
 	}
-	return true
+	return link, nil
 }

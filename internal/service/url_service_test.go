@@ -162,3 +162,25 @@ func TestInvalidUrl(t *testing.T) {
 		}
 	}
 }
+
+func TestValidUrl(t *testing.T) {
+	urls := []string{
+		"http://www.google.com",
+		"google.com",
+		"www.google.com",
+		"https://www.google.com",
+		"https://google.com",
+	}
+	ctx := context.Background()
+	store := &mockStore{}
+	cache := &mockCache{}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	svc := NewURLService(store, cache, logger, mockBaseURL)
+
+	for _, url := range urls {
+		_, err := svc.Shorten(ctx, url)
+		if err != nil {
+			t.Fatalf("expected no error for %s, but got %v", url, err)
+		}
+	}
+}
