@@ -6,6 +6,7 @@ import (
 	"goprl/internal/domain"
 	"log/slog"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -98,5 +99,18 @@ func validateUrl(link string) bool {
 	if err != nil {
 		return false
 	}
-	return u.Scheme != "" && u.Host != ""
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return false
+	}
+	host := u.Hostname()
+	if host == "" {
+		return false
+	}
+	if !strings.Contains(host, ".") {
+		return false
+	}
+	if len(host) < 4 {
+		return false
+	}
+	return true
 }
