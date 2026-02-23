@@ -3,10 +3,10 @@ package service
 import (
 	"context"
 	"errors"
-	"log/slog"
-	"time"
-
 	"goprl/internal/domain"
+	"log/slog"
+	"net/url"
+	"time"
 )
 
 type URLService struct {
@@ -27,6 +27,9 @@ func NewURLService(store domain.URLStore, cache domain.URLCache, logger *slog.Lo
 }
 
 func (s *URLService) Shorten(ctx context.Context, originalURL string) (*domain.URL, error) {
+	if !validateUrl(originalURL) {
+		return nil, errors.New("Invalid URL")
+	}
 	var url *domain.URL
 	var shortURL string
 	counter, _ := s.cache.Increment(ctx, "counter")
@@ -88,4 +91,12 @@ func generateBase62(num int64) string {
 		i--
 	}
 	return string(base62_chars[i+1:])
+}
+
+func validateUrl(link string) bool {
+	u, err := url.ParseRequestURI(link)
+	if err != nil {
+		return false
+	}
+	return u.Scheme != "" && u.Host != ""
 }
