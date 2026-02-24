@@ -18,11 +18,11 @@ import (
 )
 
 type app struct {
-	PostgresStore *postgres.Store
-	RedisStore    *redis.Cache
-	Logger        *slog.Logger
-	Handler       *api.Handler
-	Config        *config.Config
+	postgresStore *postgres.Store
+	redisStore    *redis.Cache
+	logger        *slog.Logger
+	handler       *api.Handler
+	config        *config.Config
 }
 
 func NewApp(config *config.Config) (*app, error) {
@@ -42,20 +42,20 @@ func NewApp(config *config.Config) (*app, error) {
 	handler := api.NewHandler(service)
 
 	return &app{
-		PostgresStore: postgresStore,
-		RedisStore:    redisStore,
-		Logger:        logger,
-		Handler:       handler,
-		Config:        config,
+		postgresStore: postgresStore,
+		redisStore:    redisStore,
+		logger:        logger,
+		handler:       handler,
+		config:        config,
 	}, nil
 }
 
 func (a *app) Run() error {
 	mux := http.NewServeMux()
-	a.Handler.RegisterRoutes(mux)
+	a.handler.RegisterRoutes(mux)
 	srv := &http.Server{
-		Addr:    ":" + a.Config.Port,
-		Handler: api.RequestIDMiddleware(api.LoggingMiddleware(a.Logger)(api.RateLimitMiddleware(a.RedisStore, a.Config)(mux))),
+		Addr:    ":" + a.config.Port,
+		Handler: api.RequestIDMiddleware(api.LoggingMiddleware(a.logger)(api.RateLimitMiddleware(a.redisStore, a.config)(mux))),
 	}
 	srvErrors := make(chan error, 1)
 	signalChan := make(chan os.Signal, 1)
@@ -63,7 +63,7 @@ func (a *app) Run() error {
 	signal.Notify(signalChan, os.Interrupt)
 	signal.Notify(signalChan, syscall.SIGTERM)
 
-	if a.Config.Env == "prod" {
+	if a.config.Env == "prod" {
 		go func() {
 			srvErrors <- srv.ListenAndServeTLS(
 				"/etc/letsencrypt/live/goprl.co.uk/fullchain.pem",
@@ -79,14 +79,14 @@ func (a *app) Run() error {
 	// Blocks and waits for any of the selected channels to send a value
 	select {
 	case err := <-srvErrors:
-		a.Logger.Error("server listener failure", "error", err)
+		a.logger.Error("server listener failure", "error", err)
 		return err
 	case sig := <-signalChan:
-		a.Logger.Info("shutdown signal received", "signal", sig.String())
+		a.logger.Info("shutdown signal received", "signal", sig.String())
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := srv.Shutdown(ctx); err != nil {
-			a.Logger.Error("server shutdown failed", "error", err)
+			a.logger.Error("server shutdown failed", "error", err)
 			return err
 		}
 	}
@@ -94,6 +94,6 @@ func (a *app) Run() error {
 }
 
 func (a *app) Close() {
-	a.PostgresStore.Close()
-	a.RedisStore.Close()
+	a.postgresStore.Close()
+	a.redisStore.Close()
 }
