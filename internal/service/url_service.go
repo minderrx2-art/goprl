@@ -37,11 +37,10 @@ func (s *URLService) Shorten(ctx context.Context, originalURL string) (*domain.U
 	if s.bloom.Contains(validURL) {
 		url, err := s.cache.Get(ctx, validURL)
 		if err == nil && url != nil {
+			s.logger.Info("Bloom filter cache hit", "url", validURL)
 			url.ShortURL = s.baseURL + "/" + url.ShortURL
 			return url, nil
 		}
-		s.logger.Info("Bloom filter cache miss", "url", validURL)
-
 		url, err = s.store.GetByOriginalURL(ctx, validURL)
 		if err == nil && url != nil {
 			s.logger.Info("Bloom filter store hit", "url", validURL)
@@ -49,7 +48,6 @@ func (s *URLService) Shorten(ctx context.Context, originalURL string) (*domain.U
 			url.ShortURL = s.baseURL + "/" + url.ShortURL
 			return url, nil
 		}
-		s.logger.Info("Bloom filter store miss", "url", validURL)
 	}
 	var url *domain.URL
 	var shortURL string
@@ -68,7 +66,10 @@ func (s *URLService) Shorten(ctx context.Context, originalURL string) (*domain.U
 
 	if err := s.cache.Set(ctx, shortURL, url); err != nil {
 		s.logger.Error("Failed to set cache", "error", err)
+	}
 
+	if err := s.cache.Set(ctx, validURL, url); err != nil {
+		s.logger.Error("Failed to set cache", "error", err)
 	}
 	s.bloom.Add(validURL)
 	// Apply baseURL to shortURL for handler
