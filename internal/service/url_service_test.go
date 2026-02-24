@@ -23,6 +23,10 @@ func (m *mockStore) GetByShortURL(ctx context.Context, code string) (*domain.URL
 	return m.data[code], m.err
 }
 
+func (m *mockStore) GetByOriginalURL(ctx context.Context, originalURL string) (*domain.URL, error) {
+	return m.data[originalURL], m.err
+}
+
 type mockCache struct {
 	data      map[string]*domain.URL
 	setCalled bool
@@ -44,6 +48,19 @@ func (m *mockCache) Allow(ctx context.Context, key string, limit int, window tim
 
 func (m *mockCache) Increment(ctx context.Context, key string) (int64, error) {
 	return 0, m.err
+}
+
+type mockBloom struct {
+	data map[string]bool
+	err  error
+}
+
+func (m *mockBloom) Add(item string) {
+	m.data[item] = true
+}
+
+func (m *mockBloom) Contains(item string) bool {
+	return m.data[item]
 }
 
 var mockBaseURL = "http://test.com"
@@ -72,9 +89,10 @@ func TestResolve_CacheHit(t *testing.T) {
 
 	store := &mockStore{data: map[string]*domain.URL{"abc": testURL}}
 	cache := &mockCache{data: map[string]*domain.URL{"abc": testURL}}
+	bloom := &mockBloom{data: map[string]bool{"abc": true}}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	service := NewURLService(store, cache, logger, mockBaseURL)
+	service := NewURLService(store, cache, bloom, logger, mockBaseURL)
 
 	url, err := service.Resolve(ctx, "abc")
 
@@ -97,9 +115,10 @@ func TestResolve_CacheMiss_DBHit(t *testing.T) {
 	testURL := &domain.URL{ShortURL: "abc", OriginalURL: "https://db.com"}
 	cache := &mockCache{data: map[string]*domain.URL{}} // Empty cache
 	store := &mockStore{data: map[string]*domain.URL{"abc": testURL}}
+	bloom := &mockBloom{data: map[string]bool{"abc": true}}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	svc := NewURLService(store, cache, logger, mockBaseURL)
+	svc := NewURLService(store, cache, bloom, logger, mockBaseURL)
 
 	url, err := svc.Resolve(ctx, "abc")
 
@@ -122,9 +141,10 @@ func TestShorten_DBError(t *testing.T) {
 	testURL := &domain.URL{OriginalURL: "https://db.com"}
 	store := &mockStore{err: errors.New("db error")}
 	cache := &mockCache{}
+	bloom := &mockBloom{}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	svc := NewURLService(store, cache, logger, mockBaseURL)
+	svc := NewURLService(store, cache, bloom, logger, mockBaseURL)
 
 	_, err := svc.Shorten(ctx, testURL.OriginalURL)
 
@@ -152,8 +172,9 @@ func TestInvalidUrl(t *testing.T) {
 	ctx := context.Background()
 	store := &mockStore{}
 	cache := &mockCache{}
+	bloom := &mockBloom{}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	svc := NewURLService(store, cache, logger, mockBaseURL)
+	svc := NewURLService(store, cache, bloom, logger, mockBaseURL)
 
 	for _, url := range urls {
 		_, err := svc.Shorten(ctx, url)
@@ -174,8 +195,9 @@ func TestValidUrl(t *testing.T) {
 	ctx := context.Background()
 	store := &mockStore{}
 	cache := &mockCache{}
+	bloom := &mockBloom{data: make(map[string]bool)}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	svc := NewURLService(store, cache, logger, mockBaseURL)
+	svc := NewURLService(store, cache, bloom, logger, mockBaseURL)
 
 	for _, url := range urls {
 		_, err := svc.Shorten(ctx, url)

@@ -56,6 +56,28 @@ func (s *Store) GetByShortURL(ctx context.Context, ShortURL string) (*domain.URL
 	return &url, nil
 }
 
+func (s *Store) GetByOriginalURL(ctx context.Context, originalURL string) (*domain.URL, error) {
+	query := `SELECT id, short_code, original_url, created_at, expires_at FROM urls WHERE original_url = $1`
+	row := s.db.QueryRowContext(ctx, query, originalURL)
+
+	var url domain.URL
+	err := row.Scan(&url.ID, &url.ShortURL, &url.OriginalURL, &url.CreatedAt, &url.ExpiresAt)
+
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, err
+	}
+
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, domain.ErrURLNotFound
+	}
+
+	if url.ExpiresAt.Before(time.Now()) {
+		return nil, domain.ErrURLExpired
+	}
+
+	return &url, nil
+}
+
 func isUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {

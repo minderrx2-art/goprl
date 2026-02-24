@@ -36,6 +36,33 @@ func TestGetByShortURL(t *testing.T) {
 		t.Errorf("got %s, want https://google.com", url.OriginalURL)
 	}
 }
+
+func TestGetByOriginalURL(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("failed to open mock sql: %v", err)
+	}
+	defer db.Close()
+
+	store := NewStore(db)
+	ctx := context.Background()
+
+	rows := sqlmock.NewRows([]string{"id", "short_code", "original_url", "created_at", "expires_at"}).
+		AddRow(1, "abc", "https://google.com", time.Now(), time.Now().Add(24*time.Hour))
+
+	mock.ExpectQuery("SELECT id, short_code, original_url, created_at, expires_at FROM urls WHERE original_url = \\$1").
+		WithArgs("https://google.com").
+		WillReturnRows(rows)
+
+	url, err := store.GetByOriginalURL(ctx, "https://google.com")
+
+	if err != nil {
+		t.Errorf("got error: %v, want nil", err)
+	}
+	if url.ShortURL != "abc" {
+		t.Errorf("got %s, want abc", url.ShortURL)
+	}
+}
 func TestCreateURL(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {

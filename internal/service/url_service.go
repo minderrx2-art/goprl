@@ -13,15 +13,17 @@ import (
 type URLService struct {
 	store   domain.URLStore
 	cache   domain.URLCache
+	bloom   domain.Bloom
 	logger  *slog.Logger
 	baseURL string
 }
 
 // URL service factory
-func NewURLService(store domain.URLStore, cache domain.URLCache, logger *slog.Logger, baseURL string) *URLService {
+func NewURLService(store domain.URLStore, cache domain.URLCache, bloom domain.Bloom, logger *slog.Logger, baseURL string) *URLService {
 	return &URLService{
 		store:   store,
 		cache:   cache,
+		bloom:   bloom,
 		logger:  logger,
 		baseURL: baseURL,
 	}
@@ -31,6 +33,23 @@ func (s *URLService) Shorten(ctx context.Context, originalURL string) (*domain.U
 	validURL, err := validateUrl(originalURL)
 	if err != nil {
 		return nil, err
+	}
+	if s.bloom.Contains(validURL) {
+		url, err := s.cache.Get(ctx, validURL)
+		if err == nil && url != nil {
+			url.ShortURL = s.baseURL + "/" + url.ShortURL
+			return url, nil
+		}
+		s.logger.Info("Bloom filter cache miss", "url", validURL)
+
+		url, err = s.store.GetByOriginalURL(ctx, validURL)
+		if err == nil && url != nil {
+			s.logger.Info("Bloom filter store hit", "url", validURL)
+			_ = s.cache.Set(ctx, validURL, url)
+			url.ShortURL = s.baseURL + "/" + url.ShortURL
+			return url, nil
+		}
+		s.logger.Info("Bloom filter store miss", "url", validURL)
 	}
 	var url *domain.URL
 	var shortURL string
@@ -51,6 +70,7 @@ func (s *URLService) Shorten(ctx context.Context, originalURL string) (*domain.U
 		s.logger.Error("Failed to set cache", "error", err)
 
 	}
+	s.bloom.Add(validURL)
 	// Apply baseURL to shortURL for handler
 	url.ShortURL = s.baseURL + "/" + shortURL
 	return url, nil

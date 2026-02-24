@@ -23,6 +23,7 @@ type URL struct {
 type URLStore interface {
 	CreateURL(ctx context.Context, url *URL) error
 	GetByShortURL(ctx context.Context, code string) (*URL, error)
+	GetByOriginalURL(ctx context.Context, originalURL string) (*URL, error)
 }
 
 type URLCache interface {
@@ -30,4 +31,9 @@ type URLCache interface {
 	Set(ctx context.Context, key string, value *URL) error
 	Allow(ctx context.Context, key string, limit int, window time.Duration) error
 	Increment(ctx context.Context, key string) (int64, error)
+}
+
+type Bloom interface {
+	Add(item string)
+	Contains(item string) bool
 }

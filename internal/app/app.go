@@ -36,8 +36,9 @@ func NewApp(config *config.Config) (*app, error) {
 		return nil, fmt.Errorf("REDIS: %w", err)
 	}
 
+	bloom := store.NewBloomFilter(1000000, 3)
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	service := service.NewURLService(postgresStore, redisStore, logger, config.BaseURL)
+	service := service.NewURLService(postgresStore, redisStore, bloom, logger, config.BaseURL)
 	handler := api.NewHandler(service)
 
 	return &app{
