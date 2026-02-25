@@ -6,11 +6,13 @@ import (
 	"goprl/internal/domain"
 	"io"
 	"log/slog"
+	"sync"
 	"testing"
 	"time"
 )
 
 type mockStore struct {
+	mu   sync.RWMutex
 	data map[string]*domain.URL
 	err  error
 }
@@ -20,24 +22,33 @@ func (m *mockStore) CreateURL(ctx context.Context, url *domain.URL) error {
 }
 
 func (m *mockStore) GetByShortURL(ctx context.Context, code string) (*domain.URL, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	return m.data[code], m.err
 }
 
 func (m *mockStore) GetByOriginalURL(ctx context.Context, originalURL string) (*domain.URL, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	return m.data[originalURL], m.err
 }
 
 type mockCache struct {
+	mu        sync.RWMutex
 	data      map[string]*domain.URL
 	setCalled bool
 	err       error
 }
 
 func (m *mockCache) Get(ctx context.Context, key string) (*domain.URL, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	return m.data[key], nil
 }
 
 func (m *mockCache) Set(ctx context.Context, key string, value *domain.URL) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.setCalled = true
 	return m.err
 }
@@ -51,15 +62,20 @@ func (m *mockCache) Increment(ctx context.Context, key string) (int64, error) {
 }
 
 type mockBloom struct {
+	mu   sync.RWMutex
 	data map[string]bool
 	err  error
 }
 
 func (m *mockBloom) Add(item string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.data[item] = true
 }
 
 func (m *mockBloom) Contains(item string) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	return m.data[item]
 }
 
@@ -85,7 +101,11 @@ func TestGenerateShortURL(t *testing.T) {
 func TestResolve_CacheHit(t *testing.T) {
 	ctx := context.Background()
 
-	testURL := &domain.URL{ShortURL: "abc", OriginalURL: "https://db.com"}
+	testURL := &domain.URL{
+		ShortURL:    "abc",
+		OriginalURL: "https://db.com",
+		ExpiresAt:   time.Now().Add(time.Hour),
+	}
 
 	store := &mockStore{data: map[string]*domain.URL{"abc": testURL}}
 	cache := &mockCache{data: map[string]*domain.URL{"abc": testURL}}
@@ -112,7 +132,12 @@ func TestResolve_CacheHit(t *testing.T) {
 func TestResolve_CacheMiss_DBHit(t *testing.T) {
 	ctx := context.Background()
 
-	testURL := &domain.URL{ShortURL: "abc", OriginalURL: "https://db.com"}
+	testURL := &domain.URL{
+		ShortURL:    "abc",
+		OriginalURL: "https://db.com",
+		ExpiresAt:   time.Now().Add(time.Hour),
+	}
+
 	cache := &mockCache{data: map[string]*domain.URL{}} // Empty cache
 	store := &mockStore{data: map[string]*domain.URL{"abc": testURL}}
 	bloom := &mockBloom{data: map[string]bool{"abc": true}}

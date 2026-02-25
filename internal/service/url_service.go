@@ -64,14 +64,19 @@ func (s *URLService) Shorten(ctx context.Context, originalURL string) (*domain.U
 		return nil, err
 	}
 
-	if err := s.cache.Set(ctx, shortURL, url); err != nil {
-		s.logger.Error("Failed to set cache", "error", err)
-	}
+	// Set cache and bloom in background
+	go func(u domain.URL) {
+		bgCtx := context.Background()
+		if err := s.cache.Set(bgCtx, shortURL, &u); err != nil {
+			s.logger.Error("Failed to set cache", "error", err)
+		}
 
-	if err := s.cache.Set(ctx, validURL, url); err != nil {
-		s.logger.Error("Failed to set cache", "error", err)
-	}
-	s.bloom.Add(validURL)
+		if err := s.cache.Set(bgCtx, validURL, &u); err != nil {
+			s.logger.Error("Failed to set cache", "error", err)
+		}
+		s.bloom.Add(validURL)
+	}(*url)
+
 	// Apply baseURL to shortURL for handler
 	url.ShortURL = s.baseURL + "/" + shortURL
 	return url, nil
@@ -92,8 +97,16 @@ func (s *URLService) Resolve(ctx context.Context, code string) (*domain.URL, err
 	if err != nil {
 		return nil, errors.New("URL not found")
 	}
-	// Add to cache for next time
-	_ = s.cache.Set(ctx, code, url)
+
+	if url.ExpiresAt.Before(time.Now()) {
+		return nil, domain.ErrURLExpired
+	}
+
+	go func(u domain.URL) {
+		if err := s.cache.Set(context.Background(), code, &u); err != nil {
+			s.logger.Error("Failed to set cache", "error", err)
+		}
+	}(*url)
 
 	return url, nil
 }

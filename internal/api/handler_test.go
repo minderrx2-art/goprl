@@ -169,7 +169,11 @@ func TestHandler_HandleShorten(t *testing.T) {
 }
 
 func TestHandler_HandleResolve(t *testing.T) {
-	testURL := &domain.URL{OriginalURL: "https://google.com", ShortURL: "abc"}
+	testURL := &domain.URL{
+		OriginalURL: "https://google.com",
+		ShortURL:    "abc",
+		ExpiresAt:   time.Now().Add(time.Hour),
+	}
 	store := &apiMockStore{
 		getByShortURLFunc: func(ctx context.Context, code string) (*domain.URL, error) {
 			if code == "abc" {
@@ -194,6 +198,35 @@ func TestHandler_HandleResolve(t *testing.T) {
 		}
 		if rr.Header().Get("Location") != "https://google.com" {
 			t.Errorf("expected location %s, got %s", "https://google.com", rr.Header().Get("Location"))
+		}
+	})
+
+	t.Run("Expiry failure", func(t *testing.T) {
+		testURL := &domain.URL{
+			OriginalURL: "https://google.com",
+			ShortURL:    "abc",
+			ExpiresAt:   time.Now().Add(-time.Hour),
+		}
+		store := &apiMockStore{
+			getByShortURLFunc: func(ctx context.Context, code string) (*domain.URL, error) {
+				if code == "abc" {
+					return testURL, nil
+				}
+				return nil, domain.ErrURLNotFound
+			},
+		}
+		logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+		svc := service.NewURLService(store, &apiMockCache{}, &mockBloom{}, logger, mockBaseURL)
+		h := NewHandler(svc)
+
+		req := httptest.NewRequest("GET", "/abc", nil)
+		req.SetPathValue("code", "abc")
+		rr := httptest.NewRecorder()
+
+		h.handleResolve(rr, req)
+
+		if rr.Code != http.StatusNotFound {
+			t.Errorf("expected 404, got %d", rr.Code)
 		}
 	})
 
