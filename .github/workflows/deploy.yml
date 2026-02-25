@@ -61,8 +61,6 @@ jobs:
               cd goprl
               git pull
 
-              DNS_NAME=${{vars.DNS_NAME}}
-              
               sudo docker compose -f docker-compose.prod.yaml pull
               sudo docker compose -f docker-compose.prod.yaml up -d
             "

@@ -6,8 +6,6 @@ import (
 	"errors"
 	"goprl/internal/domain"
 	"time"
-
-	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type Store struct {
@@ -71,17 +69,5 @@ func (s *Store) GetByOriginalURL(ctx context.Context, originalURL string) (*doma
 		return nil, domain.ErrURLNotFound
 	}
 
-	if url.ExpiresAt.Before(time.Now()) {
-		return nil, domain.ErrURLExpired
-	}
-
 	return &url, nil
-}
-
-func isUniqueViolation(err error) bool {
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) {
-		return pgErr.Code == "23505"
-	}
-	return false
 }

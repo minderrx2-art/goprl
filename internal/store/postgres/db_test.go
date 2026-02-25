@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/jackc/pgx/v5/pgconn"
 )
 
 func TestGetByShortURL(t *testing.T) {
@@ -92,16 +91,5 @@ func TestCreateURL(t *testing.T) {
 
 	if err != nil {
 		t.Errorf("got error: %v, want nil", err)
-	}
-}
-
-var mockPgErr = &pgconn.PgError{
-	Code: "23505",
-}
-
-func TestIsUniqueViolation(t *testing.T) {
-	result := isUniqueViolation(mockPgErr)
-	if !result {
-		t.Errorf("expected true, got %v", result)
 	}
 }
