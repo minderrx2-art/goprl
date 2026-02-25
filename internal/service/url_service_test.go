@@ -125,7 +125,7 @@ func TestResolve_CacheHit(t *testing.T) {
 	}
 
 	if cache.setCalled {
-		t.Errorf("expected cache.set to be called, but it wasn't")
+		t.Errorf("expected cache.set NOT to be called, but it was")
 	}
 }
 
@@ -151,9 +151,11 @@ func TestResolve_CacheMiss_DBHit(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if !cache.setCalled {
-		t.Errorf("expected cache.Set to be called (backfill), but it wasn't")
-	}
+	assertEventually(t, func() bool {
+		cache.mu.RLock()
+		defer cache.mu.RUnlock()
+		return cache.setCalled
+	}, 100*time.Millisecond)
 
 	if url.OriginalURL != "https://db.com" {
 		t.Errorf("got %s, want https://db.com", url.OriginalURL)
@@ -230,4 +232,15 @@ func TestValidUrl(t *testing.T) {
 			t.Fatalf("expected no error for %s, but got %v", url, err)
 		}
 	}
+}
+func assertEventually(t *testing.T, condition func() bool, timeout time.Duration) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if condition() {
+			return
+		}
+		time.Sleep(2 * time.Millisecond)
+	}
+	t.Errorf("condition not met within %v", timeout)
 }
