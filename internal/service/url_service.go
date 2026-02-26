@@ -86,6 +86,10 @@ func (s *URLService) Resolve(ctx context.Context, code string) (*domain.URL, err
 	// Fast cache poke
 	url, err := s.cache.Get(ctx, code)
 	if err == nil && url != nil {
+		if !url.ExpiresAt.IsZero() && url.ExpiresAt.Before(time.Now()) {
+			s.logger.Info("Cache hit but expired", "code", code)
+			return nil, domain.ErrURLExpired
+		}
 		s.logger.Info("Cache hit", "code", code)
 		return url, nil
 	} else {

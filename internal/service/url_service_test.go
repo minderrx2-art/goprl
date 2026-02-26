@@ -98,6 +98,29 @@ func TestGenerateShortURL(t *testing.T) {
 	}
 }
 
+func TestResolveExpiry(t *testing.T) {
+	ctx := context.Background()
+
+	testURL := &domain.URL{
+		ShortURL:    "abc",
+		OriginalURL: "https://db.com",
+		ExpiresAt:   time.Now().Add(-1 * time.Hour),
+	}
+
+	store := &mockStore{data: map[string]*domain.URL{"abc": testURL}}
+	cache := &mockCache{data: map[string]*domain.URL{"abc": testURL}}
+	bloom := &mockBloom{data: map[string]bool{"abc": true}}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	service := NewURLService(store, cache, bloom, logger, mockBaseURL)
+
+	_, err := service.Resolve(ctx, "abc")
+
+	if err != domain.ErrURLExpired {
+		t.Fatalf("expected error: %v", err)
+	}
+}
+
 func TestResolve_CacheHit(t *testing.T) {
 	ctx := context.Background()
 
@@ -162,6 +185,23 @@ func TestResolve_CacheMiss_DBHit(t *testing.T) {
 	}
 }
 
+func TestShorten_BloomContains(t *testing.T) {
+	ctx := context.Background()
+
+	store := &mockStore{}
+	cache := &mockCache{}
+	bloom := &mockBloom{data: map[string]bool{"https://www.db.com": true}}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	svc := NewURLService(store, cache, bloom, logger, mockBaseURL)
+
+	_, err := svc.Shorten(ctx, "https://db.com")
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestShorten_DBError(t *testing.T) {
 	ctx := context.Background()
 
@@ -179,7 +219,49 @@ func TestShorten_DBError(t *testing.T) {
 		t.Fatal("expected error, but got nil")
 	}
 }
+func TestShorten_CacheHit(t *testing.T) {
+	ctx := context.Background()
 
+	testURL := &domain.URL{OriginalURL: "https://www.db.com", ShortURL: "abc"}
+	store := &mockStore{}
+	cache := &mockCache{data: map[string]*domain.URL{"https://www.db.com": testURL}}
+	bloom := &mockBloom{data: map[string]bool{"https://www.db.com": true}}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	svc := NewURLService(store, cache, bloom, logger, mockBaseURL)
+
+	url, err := svc.Shorten(ctx, "https://db.com")
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if url.ShortURL != mockBaseURL+"/abc" {
+		t.Errorf("expected shortened URL %s, got %s", mockBaseURL+"/abc", url.ShortURL)
+	}
+}
+
+func TestShorten_CacheMiss_DBHit(t *testing.T) {
+	ctx := context.Background()
+
+	testURL := &domain.URL{OriginalURL: "https://www.db.com", ShortURL: "abc"}
+	store := &mockStore{data: map[string]*domain.URL{"https://www.db.com": testURL}}
+	cache := &mockCache{data: map[string]*domain.URL{}}
+	bloom := &mockBloom{data: map[string]bool{"https://www.db.com": true}}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	svc := NewURLService(store, cache, bloom, logger, mockBaseURL)
+
+	url, err := svc.Shorten(ctx, "https://db.com")
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if url.ShortURL != mockBaseURL+"/abc" {
+		t.Errorf("expected shortened URL %s, got %s", mockBaseURL+"/abc", url.ShortURL)
+	}
+}
 func TestGenerateBase62(t *testing.T) {
 	code := generateBase62(1234)
 	if code != "jU" {
@@ -233,6 +315,7 @@ func TestValidUrl(t *testing.T) {
 		}
 	}
 }
+
 func assertEventually(t *testing.T, condition func() bool, timeout time.Duration) {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
