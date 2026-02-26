@@ -7,6 +7,7 @@ Features Implemented:
 - [x] Add cache
 - [x] Add rate limiting
 - [x] CI/CD
+- [x] Basic bloom filter
 
 Required env variables
 ```
