@@ -66,4 +66,7 @@ jobs:
 
               sudo docker compose -f docker-compose.prod.yaml pull
               sudo docker compose -f docker-compose.prod.yaml up -d
+              
+              # Remove unused images but keep images in use
+              sudo docker image prune -af --filter 'until=24h'
             "
