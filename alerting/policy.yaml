@@ -1,0 +1,23 @@
+displayName: "VM Disk Usage > 92%"
+
+combiner: "OR"
+
+conditions:
+  - displayName: "Filesystem usage high"
+    conditionThreshold:
+      filter: >
+        resource.type="gce_instance"
+        AND metric.type="agent.googleapis.com/disk/percent_used"
+        AND metric.labels.device="/dev/sda1"
+      comparison: COMPARISON_GT
+      thresholdValue: 92
+      duration: 600s
+      aggregations:
+        - alignmentPeriod: 60s
+          perSeriesAligner: ALIGN_MEAN
+
+notificationChannels:
+  - projects/go-url-shortener-486311/notificationChannels/10916761915936336863
+
+alertStrategy:
+  autoClose: 86400s
