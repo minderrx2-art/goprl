@@ -61,6 +61,15 @@ func (s *URLService) Shorten(ctx context.Context, originalURL string) (*domain.U
 	}
 
 	if err := s.store.CreateURL(ctx, url); err != nil {
+		if err == domain.ErrURLAlreadyExists {
+			s.logger.Warn("Collision detected, resyncing counter", "code", url.ShortURL)
+			maxID, err := s.store.GetMaxID(ctx)
+			if err != nil {
+				return nil, err
+			}
+			_ = s.cache.SetCounter(ctx, "counter", maxID)
+			return s.Shorten(ctx, originalURL)
+		}
 		return nil, err
 	}
 

@@ -6,6 +6,8 @@ import (
 	"errors"
 	"goprl/internal/domain"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type Store struct {
@@ -26,6 +28,10 @@ func (s *Store) CreateURL(ctx context.Context, url *domain.URL) error {
 	err := row.Scan(&url.ID, &url.CreatedAt)
 
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return domain.ErrURLAlreadyExists
+		}
 		return err
 	}
 
@@ -70,4 +76,15 @@ func (s *Store) GetByOriginalURL(ctx context.Context, originalURL string) (*doma
 	}
 
 	return &url, nil
+}
+
+func (s *Store) GetMaxID(ctx context.Context) (int64, error) {
+	query := `SELECT MAX(id) FROM urls`
+	row := s.db.QueryRowContext(ctx, query)
+	var maxID int64
+	err := row.Scan(&maxID)
+	if err != nil {
+		return 0, err
+	}
+	return maxID, nil
 }

@@ -41,6 +41,10 @@ func (m *apiMockStore) GetByOriginalURL(ctx context.Context, originalURL string)
 	return nil, nil
 }
 
+func (m *apiMockStore) GetMaxID(ctx context.Context) (int64, error) {
+	return 0, nil
+}
+
 type apiMockCache struct{}
 
 func (m *apiMockCache) Get(ctx context.Context, key string) (*domain.URL, error) {
@@ -50,7 +54,8 @@ func (m *apiMockCache) Set(ctx context.Context, key string, value *domain.URL) e
 func (m *apiMockCache) Allow(ctx context.Context, key string, limit int, window time.Duration) error {
 	return nil
 }
-func (m *apiMockCache) Increment(ctx context.Context, key string) (int64, error) { return 0, nil }
+func (m *apiMockCache) Increment(ctx context.Context, key string) (int64, error)      { return 0, nil }
+func (m *apiMockCache) SetCounter(ctx context.Context, key string, value int64) error { return nil }
 
 type mockBloom struct {
 	data map[string]bool

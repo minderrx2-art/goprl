@@ -69,3 +69,7 @@ func (c *Cache) Allow(ctx context.Context, key string, limit int, window time.Du
 func (c *Cache) Increment(ctx context.Context, key string) (int64, error) {
 	return c.rdb.Incr(ctx, key).Result()
 }
+
+func (c *Cache) SetCounter(ctx context.Context, key string, value int64) error {
+	return c.rdb.Set(ctx, key, value, time.Hour).Err()
+}

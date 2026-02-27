@@ -33,6 +33,10 @@ func (m *mockStore) GetByOriginalURL(ctx context.Context, originalURL string) (*
 	return m.data[originalURL], m.err
 }
 
+func (m *mockStore) GetMaxID(ctx context.Context) (int64, error) {
+	return 0, m.err
+}
+
 type mockCache struct {
 	mu        sync.RWMutex
 	data      map[string]*domain.URL
@@ -59,6 +63,10 @@ func (m *mockCache) Allow(ctx context.Context, key string, limit int, window tim
 
 func (m *mockCache) Increment(ctx context.Context, key string) (int64, error) {
 	return 0, m.err
+}
+
+func (m *mockCache) SetCounter(ctx context.Context, key string, value int64) error {
+	return m.err
 }
 
 type mockBloom struct {
