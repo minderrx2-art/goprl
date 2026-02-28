@@ -238,7 +238,7 @@ func TestShorten_CacheHit(t *testing.T) {
 
 	svc := NewURLService(store, cache, bloom, logger, mockBaseURL)
 
-	url, err := svc.Shorten(ctx, "https://db.com")
+	url, err := svc.Shorten(ctx, "https://www.db.com")
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -260,7 +260,7 @@ func TestShorten_CacheMiss_DBHit(t *testing.T) {
 
 	svc := NewURLService(store, cache, bloom, logger, mockBaseURL)
 
-	url, err := svc.Shorten(ctx, "https://db.com")
+	url, err := svc.Shorten(ctx, "https://www.db.com")
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

@@ -134,7 +134,7 @@ func TestHandler_HandleShorten(t *testing.T) {
 			},
 		}
 		// Bloom hit -> Cache miss -> DB hit
-		bloom := &mockBloom{data: map[string]bool{"https://www.google.com": true}}
+		bloom := &mockBloom{data: map[string]bool{"https://google.com": true}}
 		svc := service.NewURLService(store, &apiMockCache{}, bloom, logger, mockBaseURL)
 		h := NewHandler(svc)
 
