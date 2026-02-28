@@ -8,6 +8,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"golang.org/x/net/publicsuffix"
 )
 
 type URLService struct {
@@ -143,28 +145,23 @@ func generateBase62(num int64) string {
 }
 
 func validateUrl(link string) (string, error) {
-	if !strings.Contains(link, "://") {
+	if !strings.HasPrefix(link, "http://") && !strings.HasPrefix(link, "https://") {
 		link = "https://" + link
-	}
-	if !strings.Contains(link, "www.") {
-		link = strings.Replace(link, "https://", "https://www.", 1)
 	}
 	u, err := url.Parse(link)
 	if err != nil {
-		return "", domain.ErrInvalidURL
+		return "", err
 	}
-	if u.Scheme != "http" && u.Scheme != "https" {
-		return "", domain.ErrInvalidScheme
-	}
+
 	host := u.Hostname()
 	if host == "" {
 		return "", domain.ErrInvalidURL
 	}
-	if len(strings.Split(host, ".")) != 3 {
+
+	_, err = publicsuffix.EffectiveTLDPlusOne(host)
+	if err != nil {
 		return "", domain.ErrInvalidURL
 	}
-	if len(host) < 4 {
-		return "", domain.ErrInvalidURL
-	}
+
 	return link, nil
 }
