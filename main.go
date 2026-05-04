@@ -5,6 +5,8 @@ import (
 	"goprl/internal/config"
 )
 
+fmt.println("Hello, World!")
+
 func main() {
 	config, err := config.NewConfig()
 	if err != nil {
