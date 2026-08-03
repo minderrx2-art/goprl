@@ -230,8 +230,8 @@ func TestHandler_HandleResolve(t *testing.T) {
 
 		h.handleResolve(rr, req)
 
-		if rr.Code != http.StatusNotFound {
-			t.Errorf("expected 404, got %d", rr.Code)
+		if rr.Code != http.StatusGone {
+			t.Errorf("expected 410, got %d", rr.Code)
 		}
 	})
 

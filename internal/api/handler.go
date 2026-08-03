@@ -2,8 +2,10 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
+	"goprl/internal/domain"
 	"goprl/internal/service"
 )
 
@@ -38,7 +40,16 @@ func (h *Handler) handleShorten(w http.ResponseWriter, r *http.Request) {
 
 	url, err := h.service.Shorten(r.Context(), req.URL)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		switch {
+		case errors.Is(err, domain.ErrInvalidURL), errors.Is(err, domain.ErrInvalidScheme):
+			http.Error(w, "invalid URL", http.StatusBadRequest)
+		case errors.Is(err, domain.ErrURLAlreadyExists):
+			http.Error(w, "URL already exists", http.StatusConflict)
+		case errors.Is(err, domain.ErrRateLimitExceeded):
+			http.Error(w, "rate limit exceeded", http.StatusTooManyRequests)
+		default:
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+		}
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -54,9 +65,16 @@ func (h *Handler) handleResolve(w http.ResponseWriter, r *http.Request) {
 
 	url, err := h.service.Resolve(r.Context(), code)
 	if err != nil {
-		http.Error(w, "not found", http.StatusNotFound)
+		switch {
+		case errors.Is(err, domain.ErrURLNotFound):
+			http.Error(w, "URL not found", http.StatusNotFound)
+		case errors.Is(err, domain.ErrURLExpired):
+			http.Error(w, "URL expired", http.StatusGone)
+		default:
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+		}
 		return
 	}
 	// 301 StatusMovedPermanently, caches redirect and skips server entirely on subsequent requests
-	http.Redirect(w, r, url.OriginalURL, http.StatusMovedPermanently)
+	http.Redirect(w, r, url.OriginalURL, http.StatusTemporaryRedirect)
 }

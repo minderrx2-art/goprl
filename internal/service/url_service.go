@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"errors"
 	"goprl/internal/domain"
 	"log/slog"
 	"net/url"
@@ -110,7 +109,7 @@ func (s *URLService) Resolve(ctx context.Context, code string) (*domain.URL, err
 	// Slow database lookup
 	url, err = s.store.GetByShortURL(ctx, code)
 	if err != nil {
-		return nil, errors.New("URL not found")
+		return nil, domain.ErrURLNotFound
 	}
 
 	if url.ExpiresAt.Before(time.Now()) {
@@ -150,7 +149,7 @@ func validateUrl(link string) (string, error) {
 	}
 	u, err := url.Parse(link)
 	if err != nil {
-		return "", err
+		return "", domain.ErrInvalidURL
 	}
 
 	host := u.Hostname()
