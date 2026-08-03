@@ -21,7 +21,7 @@ func (c *Cache) Close() error {
 	return c.rdb.Close()
 }
 
-func (c *Cache) Get(ctx context.Context, key string) (*domain.URL, error) {
+func (c *Cache) GetURL(ctx context.Context, key string) (*domain.URL, error) {
 	val, err := c.rdb.Get(ctx, key).Result()
 	if err != nil {
 		return nil, err
@@ -34,7 +34,7 @@ func (c *Cache) Get(ctx context.Context, key string) (*domain.URL, error) {
 	return &url, nil
 }
 
-func (c *Cache) Set(ctx context.Context, key string, value *domain.URL) error {
+func (c *Cache) SetURL(ctx context.Context, key string, value *domain.URL) error {
 	data, err := json.Marshal(value)
 	if err != nil {
 		return err
@@ -71,5 +71,5 @@ func (c *Cache) Increment(ctx context.Context, key string) (int64, error) {
 }
 
 func (c *Cache) SetCounter(ctx context.Context, key string, value int64) error {
-	return c.rdb.Set(ctx, key, value, time.Hour).Err()
+	return c.rdb.Set(ctx, key, value, 0).Err()
 }
