@@ -54,8 +54,12 @@ func (a *app) Run() error {
 	mux := http.NewServeMux()
 	a.handler.RegisterRoutes(mux)
 	srv := &http.Server{
-		Addr:    ":" + a.config.Port,
-		Handler: api.RequestIDMiddleware(api.LoggingMiddleware(a.logger)(api.RateLimitMiddleware(a.redisStore, a.config)(mux))),
+		Addr:              ":" + a.config.Port,
+		Handler:           api.RequestIDMiddleware(api.LoggingMiddleware(a.logger)(api.RateLimitMiddleware(a.redisStore, a.config)(mux))),
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 	srvErrors := make(chan error, 1)
 	signalChan := make(chan os.Signal, 1)
