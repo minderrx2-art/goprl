@@ -44,13 +44,13 @@ type mockCache struct {
 	err       error
 }
 
-func (m *mockCache) Get(ctx context.Context, key string) (*domain.URL, error) {
+func (m *mockCache) GetURL(ctx context.Context, key string) (*domain.URL, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.data[key], nil
 }
 
-func (m *mockCache) Set(ctx context.Context, key string, value *domain.URL) error {
+func (m *mockCache) SetURL(ctx context.Context, key string, value *domain.URL) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.setCalled = true

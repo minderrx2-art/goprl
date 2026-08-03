@@ -37,7 +37,7 @@ func (s *URLService) Shorten(ctx context.Context, originalURL string) (*domain.U
 		return nil, err
 	}
 	if s.bloom.Contains(validURL) {
-		url, err := s.cache.Get(ctx, validURL)
+		url, err := s.cache.GetURL(ctx, validURL)
 		if err == nil && url != nil {
 			s.logger.Info("Bloom filter cache hit", "url", validURL)
 			url.ShortURL = s.baseURL + "/" + url.ShortURL
@@ -46,7 +46,7 @@ func (s *URLService) Shorten(ctx context.Context, originalURL string) (*domain.U
 		url, err = s.store.GetByOriginalURL(ctx, validURL)
 		if err == nil && url != nil {
 			s.logger.Info("Bloom filter store hit", "url", validURL)
-			_ = s.cache.Set(ctx, validURL, url)
+			_ = s.cache.SetURL(ctx, validURL, url)
 			url.ShortURL = s.baseURL + "/" + url.ShortURL
 			return url, nil
 		}
@@ -78,11 +78,11 @@ func (s *URLService) Shorten(ctx context.Context, originalURL string) (*domain.U
 	// Set cache and bloom in background
 	go func(u domain.URL) {
 		bgCtx := context.Background()
-		if err := s.cache.Set(bgCtx, shortURL, &u); err != nil {
+		if err := s.cache.SetURL(bgCtx, shortURL, &u); err != nil {
 			s.logger.Error("Failed to set cache", "error", err)
 		}
 
-		if err := s.cache.Set(bgCtx, validURL, &u); err != nil {
+		if err := s.cache.SetURL(bgCtx, validURL, &u); err != nil {
 			s.logger.Error("Failed to set cache", "error", err)
 		}
 		s.bloom.Add(validURL)
@@ -95,7 +95,7 @@ func (s *URLService) Shorten(ctx context.Context, originalURL string) (*domain.U
 
 func (s *URLService) Resolve(ctx context.Context, code string) (*domain.URL, error) {
 	// Fast cache poke
-	url, err := s.cache.Get(ctx, code)
+	url, err := s.cache.GetURL(ctx, code)
 	if err == nil && url != nil {
 		if !url.ExpiresAt.IsZero() && url.ExpiresAt.Before(time.Now()) {
 			s.logger.Info("Cache hit but expired", "code", code)
@@ -118,7 +118,7 @@ func (s *URLService) Resolve(ctx context.Context, code string) (*domain.URL, err
 	}
 
 	go func(u domain.URL) {
-		if err := s.cache.Set(context.Background(), code, &u); err != nil {
+		if err := s.cache.SetURL(context.Background(), code, &u); err != nil {
 			s.logger.Error("Failed to set cache", "error", err)
 		}
 	}(*url)

@@ -29,8 +29,8 @@ type URLStore interface {
 }
 
 type URLCache interface {
-	Get(ctx context.Context, key string) (*URL, error)
-	Set(ctx context.Context, key string, value *URL) error
+	GetURL(ctx context.Context, key string) (*URL, error)
+	SetURL(ctx context.Context, key string, value *URL) error
 	SetCounter(ctx context.Context, key string, value int64) error
 	Allow(ctx context.Context, key string, limit int, window time.Duration) error
 	Increment(ctx context.Context, key string) (int64, error)

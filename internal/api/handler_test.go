@@ -47,10 +47,10 @@ func (m *apiMockStore) GetMaxID(ctx context.Context) (int64, error) {
 
 type apiMockCache struct{}
 
-func (m *apiMockCache) Get(ctx context.Context, key string) (*domain.URL, error) {
+func (m *apiMockCache) GetURL(ctx context.Context, key string) (*domain.URL, error) {
 	return nil, domain.ErrURLNotFound
 }
-func (m *apiMockCache) Set(ctx context.Context, key string, value *domain.URL) error { return nil }
+func (m *apiMockCache) SetURL(ctx context.Context, key string, value *domain.URL) error { return nil }
 func (m *apiMockCache) Allow(ctx context.Context, key string, limit int, window time.Duration) error {
 	return nil
 }
