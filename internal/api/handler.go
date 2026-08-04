@@ -1,9 +1,11 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
+	"time"
 
 	"goprl/internal/domain"
 	"goprl/internal/service"
@@ -11,16 +13,27 @@ import (
 
 type Handler struct {
 	service *service.URLService
+	db      Pinger
+	cache   Pinger
 }
 
-func NewHandler(service *service.URLService) *Handler {
-	return &Handler{service: service}
+type Pinger interface {
+	Ping(ctx context.Context) error
+}
+
+func NewHandler(service *service.URLService, db Pinger, cache Pinger) *Handler {
+	return &Handler{
+		service: service,
+		db:      db,
+		cache:   cache,
+	}
 }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /shorten", h.handleShorten)
 	mux.HandleFunc("GET /{code}", h.handleResolve)
 	mux.HandleFunc("GET /health", h.handleHealth)
+	mux.HandleFunc("GET /ready", h.handleReady)
 }
 
 func (h *Handler) handleHealth(w http.ResponseWriter, _ *http.Request) {
@@ -75,6 +88,21 @@ func (h *Handler) handleResolve(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	// 301 StatusMovedPermanently, caches redirect and skips server entirely on subsequent requests
+	// 307 avoids browsers permanently caching the redirect past URL expiry.
 	http.Redirect(w, r, url.OriginalURL, http.StatusTemporaryRedirect)
+}
+
+func (h *Handler) handleReady(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+	defer cancel()
+	if err := h.db.Ping(ctx); err != nil {
+		http.Error(w, "postgres unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	if err := h.cache.Ping(ctx); err != nil {
+		http.Error(w, "redis unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("OK"))
 }

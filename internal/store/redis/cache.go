@@ -73,3 +73,10 @@ func (c *Cache) Increment(ctx context.Context, key string) (int64, error) {
 func (c *Cache) SetCounter(ctx context.Context, key string, value int64) error {
 	return c.rdb.Set(ctx, key, value, 0).Err()
 }
+
+func (c *Cache) Ping(ctx context.Context) error {
+	if err := c.rdb.Ping(ctx).Err(); err != nil {
+		return err
+	}
+	return nil
+}

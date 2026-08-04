@@ -88,3 +88,10 @@ func (s *Store) GetMaxID(ctx context.Context) (int64, error) {
 	}
 	return maxID, nil
 }
+
+func (s *Store) Ping(ctx context.Context) error {
+	if err := s.db.PingContext(ctx); err != nil {
+		return err
+	}
+	return nil
+}

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"goprl/internal/domain"
 	"goprl/internal/service"
 	"io"
@@ -57,6 +58,14 @@ func (m *apiMockCache) Allow(ctx context.Context, key string, limit int, window 
 func (m *apiMockCache) Increment(ctx context.Context, key string) (int64, error)      { return 0, nil }
 func (m *apiMockCache) SetCounter(ctx context.Context, key string, value int64) error { return nil }
 
+type mockPinger struct {
+	err error
+}
+
+func (m *mockPinger) Ping(ctx context.Context) error {
+	return m.err
+}
+
 type mockBloom struct {
 	data map[string]bool
 }
@@ -72,7 +81,7 @@ func (m *mockBloom) Contains(item string) bool {
 var mockBaseURL = "http://test.com"
 
 func TestHandler_HandleHealth(t *testing.T) {
-	h := NewHandler(nil)
+	h := NewHandler(nil, &mockPinger{}, &mockPinger{})
 	req := httptest.NewRequest("GET", "/health", nil)
 	rr := httptest.NewRecorder()
 
@@ -84,6 +93,47 @@ func TestHandler_HandleHealth(t *testing.T) {
 	if rr.Body.String() != "OK" {
 		t.Errorf("expected OK, got %s", rr.Body.String())
 	}
+}
+
+func TestHandler_HandleReady(t *testing.T) {
+	t.Run("OK", func(t *testing.T) {
+		h := NewHandler(nil, &mockPinger{}, &mockPinger{})
+		req := httptest.NewRequest("GET", "/ready", nil)
+		rr := httptest.NewRecorder()
+
+		h.handleReady(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Errorf("expected 200, got %d", rr.Code)
+		}
+		if rr.Body.String() != "OK" {
+			t.Errorf("expected OK, got %s", rr.Body.String())
+		}
+	})
+
+	t.Run("PostgresUnavailable", func(t *testing.T) {
+		h := NewHandler(nil, &mockPinger{err: errors.New("db down")}, &mockPinger{})
+		req := httptest.NewRequest("GET", "/ready", nil)
+		rr := httptest.NewRecorder()
+
+		h.handleReady(rr, req)
+
+		if rr.Code != http.StatusServiceUnavailable {
+			t.Errorf("expected 503, got %d", rr.Code)
+		}
+	})
+
+	t.Run("RedisUnavailable", func(t *testing.T) {
+		h := NewHandler(nil, &mockPinger{}, &mockPinger{err: errors.New("redis down")})
+		req := httptest.NewRequest("GET", "/ready", nil)
+		rr := httptest.NewRecorder()
+
+		h.handleReady(rr, req)
+
+		if rr.Code != http.StatusServiceUnavailable {
+			t.Errorf("expected 503, got %d", rr.Code)
+		}
+	})
 }
 
 func TestHandler_HandleShorten(t *testing.T) {
@@ -98,7 +148,7 @@ func TestHandler_HandleShorten(t *testing.T) {
 			},
 		}
 		svc := service.NewURLService(store, &apiMockCache{}, &mockBloom{data: make(map[string]bool)}, logger, mockBaseURL)
-		h := NewHandler(svc)
+		h := NewHandler(svc, &mockPinger{}, &mockPinger{})
 
 		body := map[string]string{"url": "https://google.com"}
 		jsonBody, _ := json.Marshal(body)
@@ -136,7 +186,7 @@ func TestHandler_HandleShorten(t *testing.T) {
 		// Bloom hit -> Cache miss -> DB hit
 		bloom := &mockBloom{data: map[string]bool{"https://google.com": true}}
 		svc := service.NewURLService(store, &apiMockCache{}, bloom, logger, mockBaseURL)
-		h := NewHandler(svc)
+		h := NewHandler(svc, &mockPinger{}, &mockPinger{})
 
 		body := map[string]string{"url": "https://google.com"}
 		jsonBody, _ := json.Marshal(body)
@@ -160,7 +210,7 @@ func TestHandler_HandleShorten(t *testing.T) {
 
 	t.Run("InvalidJSON", func(t *testing.T) {
 		svc := service.NewURLService(&apiMockStore{}, &apiMockCache{}, &mockBloom{}, logger, mockBaseURL)
-		h := NewHandler(svc)
+		h := NewHandler(svc, &mockPinger{}, &mockPinger{})
 
 		req := httptest.NewRequest("POST", "/shorten", bytes.NewBufferString("invalid json"))
 		rr := httptest.NewRecorder()
@@ -189,7 +239,7 @@ func TestHandler_HandleResolve(t *testing.T) {
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	svc := service.NewURLService(store, &apiMockCache{}, &mockBloom{}, logger, mockBaseURL)
-	h := NewHandler(svc)
+	h := NewHandler(svc, &mockPinger{}, &mockPinger{})
 
 	t.Run("Success", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/abc", nil)
@@ -198,8 +248,8 @@ func TestHandler_HandleResolve(t *testing.T) {
 
 		h.handleResolve(rr, req)
 
-		if rr.Code != http.StatusMovedPermanently {
-			t.Errorf("expected 301, got %d", rr.Code)
+		if rr.Code != http.StatusTemporaryRedirect {
+			t.Errorf("expected 307, got %d", rr.Code)
 		}
 		if rr.Header().Get("Location") != "https://google.com" {
 			t.Errorf("expected location %s, got %s", "https://google.com", rr.Header().Get("Location"))
@@ -222,7 +272,7 @@ func TestHandler_HandleResolve(t *testing.T) {
 		}
 		logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 		svc := service.NewURLService(store, &apiMockCache{}, &mockBloom{}, logger, mockBaseURL)
-		h := NewHandler(svc)
+		h := NewHandler(svc, &mockPinger{}, &mockPinger{})
 
 		req := httptest.NewRequest("GET", "/abc", nil)
 		req.SetPathValue("code", "abc")

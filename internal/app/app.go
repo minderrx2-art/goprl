@@ -39,7 +39,7 @@ func NewApp(config *config.Config) (*app, error) {
 	bloom := store.NewBloomFilter(1000000, 3)
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	service := service.NewURLService(postgresStore, redisStore, bloom, logger, config.BaseURL)
-	handler := api.NewHandler(service)
+	handler := api.NewHandler(service, postgresStore, redisStore)
 
 	return &app{
 		postgresStore: postgresStore,
