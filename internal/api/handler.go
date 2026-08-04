@@ -5,11 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"goprl/internal/domain"
 	"goprl/internal/service"
 )
+
+const maxShortenBodyBytes = 4096
 
 type Handler struct {
 	service *service.URLService
@@ -46,8 +49,18 @@ func (h *Handler) handleShorten(w http.ResponseWriter, r *http.Request) {
 		URL string `json:"url"`
 	}
 
+	r.Body = http.MaxBytesReader(w, r.Body, maxShortenBodyBytes)
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+			return
+		}
 		http.Error(w, "invalid request", http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(req.URL) == "" {
+		http.Error(w, "url is required", http.StatusBadRequest)
 		return
 	}
 

@@ -221,6 +221,37 @@ func TestHandler_HandleShorten(t *testing.T) {
 			t.Errorf("expected 400, got %d", rr.Code)
 		}
 	})
+
+	t.Run("EmptyURL", func(t *testing.T) {
+		svc := service.NewURLService(&apiMockStore{}, &apiMockCache{}, &mockBloom{}, logger, mockBaseURL)
+		h := NewHandler(svc, &mockPinger{}, &mockPinger{})
+
+		body := map[string]string{"url": "   "}
+		jsonBody, _ := json.Marshal(body)
+		req := httptest.NewRequest("POST", "/shorten", bytes.NewBuffer(jsonBody))
+		rr := httptest.NewRecorder()
+
+		h.handleShorten(rr, req)
+
+		if rr.Code != http.StatusBadRequest {
+			t.Errorf("expected 400, got %d", rr.Code)
+		}
+	})
+
+	t.Run("BodyTooLarge", func(t *testing.T) {
+		svc := service.NewURLService(&apiMockStore{}, &apiMockCache{}, &mockBloom{}, logger, mockBaseURL)
+		h := NewHandler(svc, &mockPinger{}, &mockPinger{})
+
+		oversized := `{"url":"` + string(bytes.Repeat([]byte("a"), maxShortenBodyBytes)) + `"}`
+		req := httptest.NewRequest("POST", "/shorten", bytes.NewBufferString(oversized))
+		rr := httptest.NewRecorder()
+
+		h.handleShorten(rr, req)
+
+		if rr.Code != http.StatusRequestEntityTooLarge {
+			t.Errorf("expected 413, got %d", rr.Code)
+		}
+	})
 }
 
 func TestHandler_HandleResolve(t *testing.T) {
