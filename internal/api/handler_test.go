@@ -242,7 +242,7 @@ func TestHandler_HandleShorten(t *testing.T) {
 		svc := service.NewURLService(&apiMockStore{}, &apiMockCache{}, &mockBloom{}, logger, mockBaseURL)
 		h := NewHandler(svc, &mockPinger{}, &mockPinger{})
 
-		oversized := `{"url":"` + string(bytes.Repeat([]byte("a"), maxShortenBodyBytes)) + `"}`
+		oversized := `{"url":"` + string(bytes.Repeat([]byte("a"), maxBytes)) + `"}`
 		req := httptest.NewRequest("POST", "/shorten", bytes.NewBufferString(oversized))
 		rr := httptest.NewRecorder()
 
