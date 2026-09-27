@@ -5,20 +5,21 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"goprl/internal/buildinfo"
-	"goprl/internal/domain"
-	"goprl/internal/service"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"goprl/internal/buildinfo"
+	"goprl/internal/domain"
+	"goprl/internal/service"
 )
 
 type apiMockStore struct {
 	createURLFunc        func(ctx context.Context, url *domain.URL) error
-	getByShortURLFunc    func(ctx context.Context, code string) (*domain.URL, error)
+	getByShortCodeFunc   func(ctx context.Context, code string) (*domain.URL, error)
 	getByOriginalURLFunc func(ctx context.Context, originalURL string) (*domain.URL, error)
 }
 
@@ -29,9 +30,9 @@ func (m *apiMockStore) CreateURL(ctx context.Context, url *domain.URL) error {
 	return nil
 }
 
-func (m *apiMockStore) GetByShortURL(ctx context.Context, code string) (*domain.URL, error) {
-	if m.getByShortURLFunc != nil {
-		return m.getByShortURLFunc(ctx, code)
+func (m *apiMockStore) GetByShortCode(ctx context.Context, code string) (*domain.URL, error) {
+	if m.getByShortCodeFunc != nil {
+		return m.getByShortCodeFunc(ctx, code)
 	}
 	return nil, nil
 }
@@ -43,10 +44,6 @@ func (m *apiMockStore) GetByOriginalURL(ctx context.Context, originalURL string)
 	return nil, nil
 }
 
-func (m *apiMockStore) GetMaxID(ctx context.Context) (int64, error) {
-	return 0, nil
-}
-
 type apiMockCache struct{}
 
 func (m *apiMockCache) GetURL(ctx context.Context, key string) (*domain.URL, error) {
@@ -56,8 +53,7 @@ func (m *apiMockCache) SetURL(ctx context.Context, key string, value *domain.URL
 func (m *apiMockCache) Allow(ctx context.Context, key string, limit int, window time.Duration) error {
 	return nil
 }
-func (m *apiMockCache) Increment(ctx context.Context, key string) (int64, error)      { return 0, nil }
-func (m *apiMockCache) SetCounter(ctx context.Context, key string, value int64) error { return nil }
+func (m *apiMockCache) Increment(ctx context.Context, key string) (int64, error) { return 1, nil }
 
 type mockPinger struct {
 	err error
@@ -82,7 +78,7 @@ func (m *mockBloom) Contains(item string) bool {
 var mockBaseURL = "http://test.com"
 
 func TestHandler_HandleHealth(t *testing.T) {
-	h := NewHandler(nil, &mockPinger{err: errors.New("db down")}, &mockPinger{err: errors.New("redis down")})
+	h := New(nil, &mockPinger{err: errors.New("db down")}, &mockPinger{err: errors.New("redis down")}, mockBaseURL)
 	req := httptest.NewRequest("GET", "/health", nil)
 	rr := httptest.NewRecorder()
 
@@ -121,7 +117,7 @@ func TestHandler_HandleHealth(t *testing.T) {
 
 func TestHandler_HandleReady(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
-		h := NewHandler(nil, &mockPinger{}, &mockPinger{})
+		h := New(nil, &mockPinger{}, &mockPinger{}, mockBaseURL)
 		req := httptest.NewRequest("GET", "/ready", nil)
 		rr := httptest.NewRecorder()
 
@@ -136,7 +132,7 @@ func TestHandler_HandleReady(t *testing.T) {
 	})
 
 	t.Run("PostgresUnavailable", func(t *testing.T) {
-		h := NewHandler(nil, &mockPinger{err: errors.New("db down")}, &mockPinger{})
+		h := New(nil, &mockPinger{err: errors.New("db down")}, &mockPinger{}, mockBaseURL)
 		req := httptest.NewRequest("GET", "/ready", nil)
 		rr := httptest.NewRecorder()
 
@@ -148,7 +144,7 @@ func TestHandler_HandleReady(t *testing.T) {
 	})
 
 	t.Run("RedisUnavailable", func(t *testing.T) {
-		h := NewHandler(nil, &mockPinger{}, &mockPinger{err: errors.New("redis down")})
+		h := New(nil, &mockPinger{}, &mockPinger{err: errors.New("redis down")}, mockBaseURL)
 		req := httptest.NewRequest("GET", "/ready", nil)
 		rr := httptest.NewRecorder()
 
@@ -171,8 +167,8 @@ func TestHandler_HandleShorten(t *testing.T) {
 				return nil
 			},
 		}
-		svc := service.NewURLService(store, &apiMockCache{}, &mockBloom{data: make(map[string]bool)}, logger, mockBaseURL)
-		h := NewHandler(svc, &mockPinger{}, &mockPinger{})
+		svc := service.New(store, &apiMockCache{}, &apiMockCache{}, &mockBloom{data: make(map[string]bool)}, logger)
+		h := New(svc, &mockPinger{}, &mockPinger{}, mockBaseURL)
 
 		body := map[string]string{"url": "https://google.com"}
 		jsonBody, _ := json.Marshal(body)
@@ -199,7 +195,7 @@ func TestHandler_HandleShorten(t *testing.T) {
 		existingURL := &domain.URL{
 			ID:          1,
 			OriginalURL: "https://google.com",
-			ShortURL:    "abc",
+			ShortCode:   "abc",
 			ExpiresAt:   time.Now().Add(time.Hour),
 		}
 		store := &apiMockStore{
@@ -209,8 +205,8 @@ func TestHandler_HandleShorten(t *testing.T) {
 		}
 		// Bloom hit -> Cache miss -> DB hit
 		bloom := &mockBloom{data: map[string]bool{"https://google.com": true}}
-		svc := service.NewURLService(store, &apiMockCache{}, bloom, logger, mockBaseURL)
-		h := NewHandler(svc, &mockPinger{}, &mockPinger{})
+		svc := service.New(store, &apiMockCache{}, &apiMockCache{}, bloom, logger)
+		h := New(svc, &mockPinger{}, &mockPinger{}, mockBaseURL)
 
 		body := map[string]string{"url": "https://google.com"}
 		jsonBody, _ := json.Marshal(body)
@@ -233,8 +229,8 @@ func TestHandler_HandleShorten(t *testing.T) {
 	})
 
 	t.Run("InvalidJSON", func(t *testing.T) {
-		svc := service.NewURLService(&apiMockStore{}, &apiMockCache{}, &mockBloom{}, logger, mockBaseURL)
-		h := NewHandler(svc, &mockPinger{}, &mockPinger{})
+		svc := service.New(&apiMockStore{}, &apiMockCache{}, &apiMockCache{}, &mockBloom{}, logger)
+		h := New(svc, &mockPinger{}, &mockPinger{}, mockBaseURL)
 
 		req := httptest.NewRequest("POST", "/shorten", bytes.NewBufferString("invalid json"))
 		rr := httptest.NewRecorder()
@@ -247,8 +243,8 @@ func TestHandler_HandleShorten(t *testing.T) {
 	})
 
 	t.Run("EmptyURL", func(t *testing.T) {
-		svc := service.NewURLService(&apiMockStore{}, &apiMockCache{}, &mockBloom{}, logger, mockBaseURL)
-		h := NewHandler(svc, &mockPinger{}, &mockPinger{})
+		svc := service.New(&apiMockStore{}, &apiMockCache{}, &apiMockCache{}, &mockBloom{}, logger)
+		h := New(svc, &mockPinger{}, &mockPinger{}, mockBaseURL)
 
 		body := map[string]string{"url": "   "}
 		jsonBody, _ := json.Marshal(body)
@@ -263,8 +259,8 @@ func TestHandler_HandleShorten(t *testing.T) {
 	})
 
 	t.Run("BodyTooLarge", func(t *testing.T) {
-		svc := service.NewURLService(&apiMockStore{}, &apiMockCache{}, &mockBloom{}, logger, mockBaseURL)
-		h := NewHandler(svc, &mockPinger{}, &mockPinger{})
+		svc := service.New(&apiMockStore{}, &apiMockCache{}, &apiMockCache{}, &mockBloom{}, logger)
+		h := New(svc, &mockPinger{}, &mockPinger{}, mockBaseURL)
 
 		oversized := `{"url":"` + string(bytes.Repeat([]byte("a"), maxBytes)) + `"}`
 		req := httptest.NewRequest("POST", "/shorten", bytes.NewBufferString(oversized))
@@ -281,11 +277,11 @@ func TestHandler_HandleShorten(t *testing.T) {
 func TestHandler_HandleResolve(t *testing.T) {
 	testURL := &domain.URL{
 		OriginalURL: "https://google.com",
-		ShortURL:    "abc",
+		ShortCode:   "abc",
 		ExpiresAt:   time.Now().Add(time.Hour),
 	}
 	store := &apiMockStore{
-		getByShortURLFunc: func(ctx context.Context, code string) (*domain.URL, error) {
+		getByShortCodeFunc: func(ctx context.Context, code string) (*domain.URL, error) {
 			if code == "abc" {
 				return testURL, nil
 			}
@@ -293,8 +289,8 @@ func TestHandler_HandleResolve(t *testing.T) {
 		},
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	svc := service.NewURLService(store, &apiMockCache{}, &mockBloom{}, logger, mockBaseURL)
-	h := NewHandler(svc, &mockPinger{}, &mockPinger{})
+	svc := service.New(store, &apiMockCache{}, &apiMockCache{}, &mockBloom{}, logger)
+	h := New(svc, &mockPinger{}, &mockPinger{}, mockBaseURL)
 
 	t.Run("Success", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/abc", nil)
@@ -314,11 +310,11 @@ func TestHandler_HandleResolve(t *testing.T) {
 	t.Run("Expiry failure", func(t *testing.T) {
 		testURL := &domain.URL{
 			OriginalURL: "https://google.com",
-			ShortURL:    "abc",
+			ShortCode:   "abc",
 			ExpiresAt:   time.Now().Add(-time.Hour),
 		}
 		store := &apiMockStore{
-			getByShortURLFunc: func(ctx context.Context, code string) (*domain.URL, error) {
+			getByShortCodeFunc: func(ctx context.Context, code string) (*domain.URL, error) {
 				if code == "abc" {
 					return testURL, nil
 				}
@@ -326,8 +322,8 @@ func TestHandler_HandleResolve(t *testing.T) {
 			},
 		}
 		logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-		svc := service.NewURLService(store, &apiMockCache{}, &mockBloom{}, logger, mockBaseURL)
-		h := NewHandler(svc, &mockPinger{}, &mockPinger{})
+		svc := service.New(store, &apiMockCache{}, &apiMockCache{}, &mockBloom{}, logger)
+		h := New(svc, &mockPinger{}, &mockPinger{}, mockBaseURL)
 
 		req := httptest.NewRequest("GET", "/abc", nil)
 		req.SetPathValue("code", "abc")

@@ -2,11 +2,12 @@ package service
 
 import (
 	"context"
-	"goprl/internal/domain"
 	"io"
 	"log/slog"
 	"testing"
 	"time"
+
+	"goprl/internal/domain"
 )
 
 func TestExpiryBoundary(t *testing.T) {
@@ -37,7 +38,7 @@ func TestShortenDoesNotReuseExpiredLink(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			original := "https://example.com"
-			expired := &domain.URL{OriginalURL: original, ShortURL: "old", ExpiresAt: time.Now().Add(-time.Hour)}
+			expired := &domain.URL{OriginalURL: original, ShortCode: "old", ExpiresAt: time.Now().Add(-time.Hour)}
 			store := &mockStore{data: map[string]*domain.URL{original: expired}}
 			cache := &mockCache{data: make(map[string]*domain.URL)}
 			if cacheHit {
@@ -45,17 +46,17 @@ func TestShortenDoesNotReuseExpiredLink(t *testing.T) {
 			}
 			bloom := &mockBloom{data: map[string]bool{original: true}}
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-			svc := NewURLService(store, cache, bloom, logger, mockBaseURL)
+			svc := New(store, cache, cache, bloom, logger)
 			before := time.Now()
 			link, err := svc.Shorten(context.Background(), original)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if link.ShortURL == mockBaseURL+"/old" || link == expired {
+			if link.ShortCode == "old" || link == expired {
 				t.Fatal("returned an expired link")
 			}
-			if link.ExpiresAt.Before(before.Add(24*time.Hour)) || link.ExpiresAt.After(time.Now().Add(24*time.Hour)) {
-				t.Errorf("new link must have a 24-hour lifetime, got %v", link.ExpiresAt)
+			if link.ExpiresAt.Before(before.Add(linkLifetime)) || link.ExpiresAt.After(time.Now().Add(linkLifetime)) {
+				t.Errorf("new link must have a seven-day lifetime, got %v", link.ExpiresAt)
 			}
 		})
 	}

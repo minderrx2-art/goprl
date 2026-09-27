@@ -1,21 +1,36 @@
 package main
 
 import (
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"os"
+	"os/signal"
+	"syscall"
+
 	"goprl/internal/app"
 	"goprl/internal/config"
 )
 
 func main() {
-	config, err := config.NewConfig()
+	if err := run(); err != nil {
+		slog.Error("application failed", "error", err)
+		os.Exit(1)
+	}
+}
+
+func run() (err error) {
+	cfg, err := config.Load()
 	if err != nil {
-		panic("CONFIG creation failed: " + err.Error())
+		return fmt.Errorf("load configuration: %w", err)
 	}
-	app, err := app.NewApp(config)
+	a, err := app.New(cfg)
 	if err != nil {
-		panic("APP creation failed: " + err.Error())
+		return err
 	}
-	defer app.Close()
-	if err := app.Run(); err != nil {
-		panic("APP run failed: " + err.Error())
-	}
+	defer func() { err = errors.Join(err, a.Close()) }()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	return a.Run(ctx)
 }

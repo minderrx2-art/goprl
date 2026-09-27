@@ -3,59 +3,72 @@ package api
 import (
 	"context"
 	"errors"
-	"goprl/internal/config"
-	"goprl/internal/domain"
 	"log/slog"
 	"net"
 	"net/http"
 	"time"
 
+	"goprl/internal/domain"
+
 	"github.com/google/uuid"
 )
 
-type contextKey string
+type requestIDKey struct{}
 
-const RequestIDKey contextKey = "request_id"
+// RequestID returns the ID assigned to the request, or an empty string.
+func RequestID(ctx context.Context) string {
+	id, _ := ctx.Value(requestIDKey{}).(string)
+	return id
+}
 
 func RequestIDMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		id := generateRandomID()
-		ctx := context.WithValue(r.Context(), RequestIDKey, id)
+		id := uuid.NewString()
+		ctx := context.WithValue(r.Context(), requestIDKey{}, id)
 		w.Header().Set("X-Request-ID", id)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
-// Capture logger in closure and return the middleware handler
 func LoggingMiddleware(logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			id, _ := r.Context().Value(RequestIDKey).(string)
-			logger.Info("Request", "method", r.Method, "url", r.URL, "request_id", id)
+			logger.Info("request", "method", r.Method, "url", r.URL, "request_id", RequestID(r.Context()))
 			next.ServeHTTP(w, r)
 		})
 	}
 }
 
-func RateLimitMiddleware(cache domain.URLCache, config *config.Config) func(http.Handler) http.Handler {
-	if config.RateLimit <= 0 {
-		return func(next http.Handler) http.Handler {
+// RateLimiter implements a fixed-window request limit.
+type RateLimiter interface {
+	Allow(context.Context, string, int, time.Duration) error
+}
+
+func RateLimitMiddleware(limiter RateLimiter, limit int, logger *slog.Logger) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		if limit <= 0 {
 			return next
 		}
-	}
-	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ip, _, _ := net.SplitHostPort(r.RemoteAddr)
-			err := cache.Allow(r.Context(), ip, config.RateLimit, time.Minute)
+			if r.URL.Path == "/health" || r.URL.Path == "/ready" {
+				next.ServeHTTP(w, r)
+				return
+			}
+			ip, _, err := net.SplitHostPort(r.RemoteAddr)
+			if err != nil {
+				// A bare IP is useful for in-process callers. Keep other malformed
+				// addresses separate rather than grouping them under an empty key.
+				ip = r.RemoteAddr
+			}
+			err = limiter.Allow(r.Context(), ip, limit, time.Minute)
 			if errors.Is(err, domain.ErrRateLimitExceeded) {
 				http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
 				return
 			}
+			if err != nil {
+				logger.Warn("rate limiter unavailable; allowing request", "error", err)
+			}
 			next.ServeHTTP(w, r)
 		})
 	}
-}
-
-func generateRandomID() string {
-	return uuid.NewString()
 }

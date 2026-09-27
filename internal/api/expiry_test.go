@@ -5,16 +5,17 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"goprl/internal/domain"
-	"goprl/internal/service"
-	"goprl/internal/store/postgres"
-	rediscache "goprl/internal/store/redis"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"goprl/internal/domain"
+	"goprl/internal/service"
+	"goprl/internal/store/postgres"
+	rediscache "goprl/internal/store/redis"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/alicebob/miniredis/v2"
@@ -50,8 +51,8 @@ func TestResolveExpiryAcrossStoragePaths(t *testing.T) {
 			mr := miniredis.RunT(t)
 			rdb := goredis.NewClient(&goredis.Options{Addr: mr.Addr()})
 			t.Cleanup(func() { rdb.Close() })
-			cache := rediscache.NewCache(rdb)
-			link := &domain.URL{ID: 1, ShortURL: "abc", OriginalURL: "https://example.com", CreatedAt: now.Add(-24 * time.Hour), ExpiresAt: tc.expiresAt}
+			cache := rediscache.New(rdb)
+			link := &domain.URL{ID: 1, ShortCode: "abc", OriginalURL: "https://example.com", CreatedAt: now.Add(-24 * time.Hour), ExpiresAt: tc.expiresAt}
 			if tc.cacheState != "miss" {
 				if err := cache.SetURL(context.Background(), "abc", link); err != nil {
 					t.Fatal(err)
@@ -69,12 +70,12 @@ func TestResolveExpiryAcrossStoragePaths(t *testing.T) {
 					if !tc.expiresAt.IsZero() {
 						expiry = tc.expiresAt
 					}
-					query.WillReturnRows(sqlmock.NewRows([]string{"id", "short_code", "original_url", "created_at", "expires_at"}).AddRow(link.ID, link.ShortURL, link.OriginalURL, link.CreatedAt, expiry))
+					query.WillReturnRows(sqlmock.NewRows([]string{"id", "short_code", "original_url", "created_at", "expires_at"}).AddRow(link.ID, link.ShortCode, link.OriginalURL, link.CreatedAt, expiry))
 				}
 			}
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-			svc := service.NewURLService(postgres.NewStore(db), cache, nil, logger, mockBaseURL)
-			h := NewHandler(svc, nil, nil)
+			svc := service.New(postgres.New(db), cache, cache, nil, logger)
+			h := New(svc, nil, nil, mockBaseURL)
 			req := httptest.NewRequest(http.MethodGet, "/abc", nil)
 			req.SetPathValue("code", "abc")
 			rr := httptest.NewRecorder()

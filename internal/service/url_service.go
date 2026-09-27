@@ -2,173 +2,171 @@ package service
 
 import (
 	"context"
-	"goprl/internal/domain"
+	"errors"
+	"fmt"
 	"log/slog"
 	"net/url"
 	"strings"
 	"time"
 
+	"goprl/internal/domain"
+
 	"golang.org/x/net/publicsuffix"
 )
 
-type URLService struct {
-	store   domain.URLStore
-	cache   domain.URLCache
-	bloom   domain.Bloom
-	logger  *slog.Logger
-	baseURL string
+// Store persists short links.
+type Store interface {
+	CreateURL(context.Context, *domain.URL) error
+	GetByShortCode(context.Context, string) (*domain.URL, error)
+	GetByOriginalURL(context.Context, string) (*domain.URL, error)
 }
 
-// URL service factory
-func NewURLService(store domain.URLStore, cache domain.URLCache, bloom domain.Bloom, logger *slog.Logger, baseURL string) *URLService {
-	return &URLService{
-		store:   store,
-		cache:   cache,
-		bloom:   bloom,
-		logger:  logger,
-		baseURL: baseURL,
-	}
+// Cache provides best-effort link caching.
+type Cache interface {
+	GetURL(context.Context, string) (*domain.URL, error)
+	SetURL(context.Context, string, *domain.URL) error
 }
+
+// Counter allocates monotonically increasing short-code values.
+type Counter interface {
+	Increment(context.Context, string) (int64, error)
+}
+
+// Bloom tracks original URLs seen by this process.
+type Bloom interface {
+	Add(string)
+	Contains(string) bool
+}
+
+type URLService struct {
+	store   Store
+	cache   Cache
+	counter Counter
+	bloom   Bloom
+	logger  *slog.Logger
+}
+
+func New(store Store, cache Cache, counter Counter, bloom Bloom, logger *slog.Logger) *URLService {
+	return &URLService{store: store, cache: cache, counter: counter, bloom: bloom, logger: logger}
+}
+
+const (
+	linkLifetime          = 7 * 24 * time.Hour
+	cacheWriteTimeout     = 250 * time.Millisecond
+	maxAllocationAttempts = 8
+)
 
 func (s *URLService) Shorten(ctx context.Context, originalURL string) (*domain.URL, error) {
-	validURL, err := validateUrl(originalURL)
+	validURL, err := validateURL(originalURL)
 	if err != nil {
 		return nil, err
 	}
 	if s.bloom.Contains(validURL) {
-		url, err := s.cache.GetURL(ctx, validURL)
-		if err == nil && url != nil && !isExpired(url, time.Now()) {
-			s.logger.Info("Bloom filter cache hit", "url", validURL)
-			url.ShortURL = s.baseURL + "/" + url.ShortURL
-			return url, nil
+		link, err := s.cache.GetURL(ctx, validURL)
+		if err == nil && link != nil && !isExpired(link, time.Now()) {
+			return link, nil
 		}
-		url, err = s.store.GetByOriginalURL(ctx, validURL)
-		if err == nil && url != nil && !isExpired(url, time.Now()) {
-			s.logger.Info("Bloom filter store hit", "url", validURL)
-			_ = s.cache.SetURL(ctx, validURL, url)
-			url.ShortURL = s.baseURL + "/" + url.ShortURL
-			return url, nil
+		link, err = s.store.GetByOriginalURL(ctx, validURL)
+		if err != nil && !errors.Is(err, domain.ErrURLNotFound) {
+			return nil, fmt.Errorf("look up original URL: %w", err)
+		}
+		if err == nil && link != nil && !isExpired(link, time.Now()) {
+			s.cacheLink(ctx, link, validURL)
+			return link, nil
 		}
 	}
-	var url *domain.URL
-	var shortURL string
-	counter, _ := s.cache.Increment(ctx, "counter")
-	shortURL = generateBase62(counter)
-	url = &domain.URL{
-		OriginalURL: validURL,
-		ShortURL:    shortURL,
-		CreatedAt:   time.Now(),
-		ExpiresAt:   time.Now().Add(7 * 24 * time.Hour),
-	}
-
-	if err := s.store.CreateURL(ctx, url); err != nil {
-		if err == domain.ErrURLAlreadyExists {
-			s.logger.Warn("Collision detected, resyncing counter", "code", url.ShortURL)
-			maxID, err := s.store.GetMaxID(ctx)
-			if err != nil {
-				return nil, err
+	for range maxAllocationAttempts {
+		counter, err := s.counter.Increment(ctx, "counter")
+		if err != nil {
+			return nil, fmt.Errorf("allocate short code: %w", err)
+		}
+		if counter <= 0 {
+			return nil, fmt.Errorf("allocate short code: counter must be positive, got %d", counter)
+		}
+		now := time.Now()
+		link := &domain.URL{
+			OriginalURL: validURL,
+			ShortCode:   generateBase62(counter),
+			CreatedAt:   now,
+			ExpiresAt:   now.Add(linkLifetime),
+		}
+		if err := s.store.CreateURL(ctx, link); err != nil {
+			if errors.Is(err, domain.ErrURLAlreadyExists) {
+				s.logger.Warn("short code collision", "code", link.ShortCode)
+				continue
 			}
-			_ = s.cache.SetCounter(ctx, "counter", maxID)
-			return s.Shorten(ctx, originalURL)
+			return nil, fmt.Errorf("create short link: %w", err)
 		}
-		return nil, err
-	}
-
-	// Set cache and bloom in background
-	go func(u domain.URL) {
-		bgCtx := context.Background()
-		if err := s.cache.SetURL(bgCtx, shortURL, &u); err != nil {
-			s.logger.Error("Failed to set cache", "error", err)
-		}
-
-		if err := s.cache.SetURL(bgCtx, validURL, &u); err != nil {
-			s.logger.Error("Failed to set cache", "error", err)
-		}
+		s.cacheLink(ctx, link, link.ShortCode, validURL)
 		s.bloom.Add(validURL)
-	}(*url)
-
-	// Apply baseURL to shortURL for handler
-	url.ShortURL = s.baseURL + "/" + shortURL
-	return url, nil
+		return link, nil
+	}
+	return nil, fmt.Errorf("allocate short code after %d attempts: %w", maxAllocationAttempts, domain.ErrURLAlreadyExists)
 }
 
 func (s *URLService) Resolve(ctx context.Context, code string) (*domain.URL, error) {
-	// Fast cache poke
-	url, err := s.cache.GetURL(ctx, code)
-	if err == nil && url != nil {
-		if isExpired(url, time.Now()) {
-			s.logger.Info("Cache hit but expired", "code", code)
+	link, err := s.cache.GetURL(ctx, code)
+	if err == nil && link != nil {
+		if isExpired(link, time.Now()) {
 			return nil, domain.ErrURLExpired
 		}
-		s.logger.Info("Cache hit", "code", code)
-		return url, nil
-	} else {
-		s.logger.Info("Cache miss", "code", code)
+		return link, nil
 	}
-
-	// Slow database lookup
-	url, err = s.store.GetByShortURL(ctx, code)
+	link, err = s.store.GetByShortCode(ctx, code)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("resolve short code: %w", err)
 	}
-	if url == nil {
+	if link == nil {
 		return nil, domain.ErrURLNotFound
 	}
-
-	if isExpired(url, time.Now()) {
+	if isExpired(link, time.Now()) {
 		return nil, domain.ErrURLExpired
 	}
+	s.cacheLink(ctx, link, code)
+	return link, nil
+}
 
-	go func(u domain.URL) {
-		if err := s.cache.SetURL(context.Background(), code, &u); err != nil {
-			s.logger.Error("Failed to set cache", "error", err)
+func (s *URLService) cacheLink(ctx context.Context, link *domain.URL, keys ...string) {
+	ctx, cancel := context.WithTimeout(ctx, cacheWriteTimeout)
+	defer cancel()
+	for _, key := range keys {
+		if err := s.cache.SetURL(ctx, key, link); err != nil {
+			s.logger.Warn("cache write failed", "error", err)
 		}
-	}(*url)
-
-	return url, nil
+	}
 }
 
 // A zero timestamp represents a link without expiry. The deadline itself is expired.
-func isExpired(url *domain.URL, now time.Time) bool {
-	return !url.ExpiresAt.IsZero() && !now.Before(url.ExpiresAt)
+func isExpired(link *domain.URL, now time.Time) bool {
+	return !link.ExpiresAt.IsZero() && !now.Before(link.ExpiresAt)
 }
 
 const charset = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
-// Big-endian
 func generateBase62(num int64) string {
 	if num == 0 {
 		return string(charset[0])
 	}
-	base62_chars := [12]byte{}
-	i := 11
+	var digits [11]byte // Enough for the largest positive int64 in base 62.
+	i := len(digits)
 	for num > 0 {
-		rem := num % 62
-		num /= 62
-		base62_chars[i] = charset[rem]
 		i--
+		digits[i] = charset[num%62]
+		num /= 62
 	}
-	return string(base62_chars[i+1:])
+	return string(digits[i:])
 }
 
-func validateUrl(link string) (string, error) {
+func validateURL(link string) (string, error) {
 	if !strings.HasPrefix(link, "http://") && !strings.HasPrefix(link, "https://") {
 		link = "https://" + link
 	}
 	u, err := url.Parse(link)
-	if err != nil {
+	if err != nil || u.Hostname() == "" {
 		return "", domain.ErrInvalidURL
 	}
-
-	host := u.Hostname()
-	if host == "" {
+	if _, err := publicsuffix.EffectiveTLDPlusOne(u.Hostname()); err != nil {
 		return "", domain.ErrInvalidURL
 	}
-
-	_, err = publicsuffix.EffectiveTLDPlusOne(host)
-	if err != nil {
-		return "", domain.ErrInvalidURL
-	}
-
 	return link, nil
 }

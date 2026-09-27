@@ -3,6 +3,9 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"fmt"
+
 	"goprl/internal/store/postgres"
 	"goprl/internal/store/redis"
 
@@ -10,25 +13,32 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
-func NewPostgresStore(url string) (*postgres.Store, error) {
+func OpenPostgres(ctx context.Context, url string) (*postgres.Store, error) {
 	db, err := sql.Open("pgx", url)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("open database: %w", err)
 	}
-	if err := db.Ping(); err != nil {
-		return nil, err
-	}
-	return postgres.NewStore(db), nil
+	return pingPostgres(ctx, db)
 }
 
-func NewRedisStore(url string) (*redis.Cache, error) {
+func pingPostgres(ctx context.Context, db *sql.DB) (*postgres.Store, error) {
+	if err := db.PingContext(ctx); err != nil {
+		return nil, errors.Join(fmt.Errorf("ping database: %w", err), db.Close())
+	}
+	return postgres.New(db), nil
+}
+
+func OpenRedis(ctx context.Context, url string) (*redis.Cache, error) {
 	opt, err := goredis.ParseURL(url)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parse redis URL: %w", err)
 	}
-	rdb := goredis.NewClient(opt)
-	if err := rdb.Ping(context.Background()).Err(); err != nil {
-		return nil, err
+	return pingRedis(ctx, goredis.NewClient(opt))
+}
+
+func pingRedis(ctx context.Context, client *goredis.Client) (*redis.Cache, error) {
+	if err := client.Ping(ctx).Err(); err != nil {
+		return nil, errors.Join(fmt.Errorf("ping redis: %w", err), client.Close())
 	}
-	return redis.NewCache(rdb), nil
+	return redis.New(client), nil
 }

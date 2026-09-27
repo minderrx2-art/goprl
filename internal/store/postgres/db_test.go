@@ -2,21 +2,22 @@ package postgres
 
 import (
 	"context"
-	"goprl/internal/domain"
 	"testing"
 	"time"
+
+	"goprl/internal/domain"
 
 	"github.com/DATA-DOG/go-sqlmock"
 )
 
-func TestGetByShortURL(t *testing.T) {
+func TestGetByShortCode(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
 		t.Fatalf("failed to open mock sql: %v", err)
 	}
 	defer db.Close()
 
-	store := NewStore(db)
+	store := New(db)
 	ctx := context.Background()
 
 	rows := sqlmock.NewRows([]string{"id", "short_code", "original_url", "created_at", "expires_at"}).
@@ -26,7 +27,7 @@ func TestGetByShortURL(t *testing.T) {
 		WithArgs("abc").
 		WillReturnRows(rows)
 
-	url, err := store.GetByShortURL(ctx, "abc")
+	url, err := store.GetByShortCode(ctx, "abc")
 
 	if err != nil {
 		t.Errorf("got error: %v, want nil", err)
@@ -43,7 +44,7 @@ func TestGetByOriginalURL(t *testing.T) {
 	}
 	defer db.Close()
 
-	store := NewStore(db)
+	store := New(db)
 	ctx := context.Background()
 
 	rows := sqlmock.NewRows([]string{"id", "short_code", "original_url", "created_at", "expires_at"}).
@@ -58,8 +59,8 @@ func TestGetByOriginalURL(t *testing.T) {
 	if err != nil {
 		t.Errorf("got error: %v, want nil", err)
 	}
-	if url.ShortURL != "abc" {
-		t.Errorf("got %s, want abc", url.ShortURL)
+	if url.ShortCode != "abc" {
+		t.Errorf("got %s, want abc", url.ShortCode)
 	}
 }
 func TestCreateURL(t *testing.T) {
@@ -69,7 +70,7 @@ func TestCreateURL(t *testing.T) {
 	}
 	defer db.Close()
 
-	store := NewStore(db)
+	store := New(db)
 	ctx := context.Background()
 
 	rows := sqlmock.NewRows([]string{"id", "created_at"}).
@@ -81,7 +82,7 @@ func TestCreateURL(t *testing.T) {
 		WillReturnRows(rows)
 
 	mockURL := &domain.URL{
-		ShortURL:    "abc",
+		ShortCode:   "abc",
 		OriginalURL: "https://google.com",
 		CreatedAt:   time.Now(),
 		ExpiresAt:   expiry,

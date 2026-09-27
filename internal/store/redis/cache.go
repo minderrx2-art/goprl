@@ -3,8 +3,9 @@ package redis
 import (
 	"context"
 	"encoding/json"
-	"goprl/internal/domain"
 	"time"
+
+	"goprl/internal/domain"
 
 	goredis "github.com/go-redis/redis/v8"
 )
@@ -13,7 +14,7 @@ type Cache struct {
 	rdb *goredis.Client
 }
 
-func NewCache(rdb *goredis.Client) *Cache {
+func New(rdb *goredis.Client) *Cache {
 	return &Cache{rdb: rdb}
 }
 
@@ -39,30 +40,27 @@ func (c *Cache) SetURL(ctx context.Context, key string, value *domain.URL) error
 	if err != nil {
 		return err
 	}
-	// tweak expiry later
+	// Cache eviction is independent of the service's link-expiry checks.
 	return c.rdb.Set(ctx, key, data, time.Hour).Err()
 }
 
-// Fixed window rate limiter
-func (c *Cache) Allow(ctx context.Context, key string, limit int, window time.Duration) error {
-	fullKey := "rate_limit:" + key
+// Increment and expiry run atomically so a new window cannot lose its TTL.
+var rateLimitScript = goredis.NewScript(`
+local count = redis.call("INCR", KEYS[1])
+if count == 1 then
+    redis.call("PEXPIRE", KEYS[1], ARGV[1])
+end
+return count
+`)
 
-	n, err := c.rdb.Incr(ctx, fullKey).Result()
+func (c *Cache) Allow(ctx context.Context, key string, limit int, window time.Duration) error {
+	n, err := rateLimitScript.Run(ctx, c.rdb, []string{"rate_limit:" + key}, window.Milliseconds()).Int64()
 	if err != nil {
 		return err
 	}
-
-	if n == 1 {
-		err = c.rdb.Expire(ctx, fullKey, window).Err()
-		if err != nil {
-			return err
-		}
-	}
-
 	if n > int64(limit) {
 		return domain.ErrRateLimitExceeded
 	}
-
 	return nil
 }
 
@@ -70,13 +68,6 @@ func (c *Cache) Increment(ctx context.Context, key string) (int64, error) {
 	return c.rdb.Incr(ctx, key).Result()
 }
 
-func (c *Cache) SetCounter(ctx context.Context, key string, value int64) error {
-	return c.rdb.Set(ctx, key, value, 0).Err()
-}
-
 func (c *Cache) Ping(ctx context.Context) error {
-	if err := c.rdb.Ping(ctx).Err(); err != nil {
-		return err
-	}
-	return nil
+	return c.rdb.Ping(ctx).Err()
 }

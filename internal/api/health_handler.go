@@ -2,8 +2,9 @@ package api
 
 import (
 	"encoding/json"
-	"goprl/internal/buildinfo"
 	"net/http"
+
+	"goprl/internal/buildinfo"
 )
 
 type healthResponse struct {

@@ -5,8 +5,7 @@ import (
 	"sync"
 )
 
-// m size
-// k hash number
+// BloomFilter tracks membership with possible false positives.
 type BloomFilter struct {
 	mu     sync.RWMutex
 	bitset []bool
@@ -14,7 +13,8 @@ type BloomFilter struct {
 	k      uint
 }
 
-func NewBloomFilter(m uint, k uint) *BloomFilter {
+// NewBloomFilter creates a filter with m bits and k hash probes.
+func NewBloomFilter(m, k uint) *BloomFilter {
 	return &BloomFilter{
 		bitset: make([]bool, m),
 		m:      m,

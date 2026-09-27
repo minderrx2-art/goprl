@@ -1,42 +1,41 @@
 package config
 
 import (
-	"os"
 	"testing"
 )
 
-func TestNewConfig(t *testing.T) {
-	// Helper to clear env
-	clearEnv := func() {
-		os.Unsetenv("DATABASE_URL")
-		os.Unsetenv("REDIS_URL")
-		os.Unsetenv("PORT")
+func TestLoad(t *testing.T) {
+	clearEnv := func(t *testing.T) {
+		t.Helper()
+		for _, key := range []string{"DATABASE_URL", "REDIS_URL", "PORT", "BASE_URL", "RATE_LIMIT", "ENV"} {
+			t.Setenv(key, "")
+		}
 	}
 
 	t.Run("Missing DATABASE_URL", func(t *testing.T) {
-		clearEnv()
-		os.Setenv("REDIS_URL", "redis://localhost:6379")
-		_, err := NewConfig()
+		clearEnv(t)
+		t.Setenv("REDIS_URL", "redis://localhost:6379")
+		_, err := Load()
 		if err == nil {
 			t.Error("Expected error when DATABASE_URL is missing")
 		}
 	})
 
 	t.Run("Missing REDIS_URL", func(t *testing.T) {
-		clearEnv()
-		os.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/db")
-		_, err := NewConfig()
+		clearEnv(t)
+		t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/db")
+		_, err := Load()
 		if err == nil {
 			t.Error("Expected error when REDIS_URL is missing")
 		}
 	})
 
 	t.Run("Default Port", func(t *testing.T) {
-		clearEnv()
-		os.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/db")
-		os.Setenv("REDIS_URL", "redis://localhost:6379")
+		clearEnv(t)
+		t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/db")
+		t.Setenv("REDIS_URL", "redis://localhost:6379")
 
-		cfg, err := NewConfig()
+		cfg, err := Load()
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}
@@ -46,12 +45,12 @@ func TestNewConfig(t *testing.T) {
 	})
 
 	t.Run("Custom Port", func(t *testing.T) {
-		clearEnv()
-		os.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/db")
-		os.Setenv("REDIS_URL", "redis://localhost:6379")
-		os.Setenv("PORT", "9090")
+		clearEnv(t)
+		t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/db")
+		t.Setenv("REDIS_URL", "redis://localhost:6379")
+		t.Setenv("PORT", "9090")
 
-		cfg, err := NewConfig()
+		cfg, err := Load()
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}

@@ -34,7 +34,7 @@ func (h *Handler) handleShorten(w http.ResponseWriter, r *http.Request) {
 	url, err := h.service.Shorten(r.Context(), req.URL)
 	if err != nil {
 		switch {
-		case errors.Is(err, domain.ErrInvalidURL), errors.Is(err, domain.ErrInvalidScheme):
+		case errors.Is(err, domain.ErrInvalidURL):
 			http.Error(w, "invalid URL", http.StatusBadRequest)
 		case errors.Is(err, domain.ErrURLAlreadyExists):
 			http.Error(w, "URL already exists", http.StatusConflict)
@@ -48,7 +48,7 @@ func (h *Handler) handleShorten(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]string{
-		"short_url":  url.ShortURL,
+		"short_url":  h.baseURL + "/" + url.ShortCode,
 		"expires_at": url.ExpiresAt.String(),
 	})
 }

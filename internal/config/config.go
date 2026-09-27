@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -17,37 +18,35 @@ type Config struct {
 	Env         string
 }
 
-func NewConfig() (*Config, error) {
+// Load reads environment variables, loading .env without overriding the environment.
+func Load() (*Config, error) {
 	_ = godotenv.Load()
-	var databaseURL, redisURL, port, baseURL, rateLimit, env string
-	if port = os.Getenv("PORT"); port == "" {
-		port = "8080"
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		return nil, errors.New("DATABASE_URL is not set")
 	}
-	if databaseURL = os.Getenv("DATABASE_URL"); databaseURL == "" {
-		return nil, fmt.Errorf("DATABASE_URL is not set")
+	redisURL := os.Getenv("REDIS_URL")
+	if redisURL == "" {
+		return nil, errors.New("REDIS_URL is not set")
 	}
-	if redisURL = os.Getenv("REDIS_URL"); redisURL == "" {
-		return nil, fmt.Errorf("REDIS_URL is not set")
-	}
-	if baseURL = os.Getenv("BASE_URL"); baseURL == "" {
-		baseURL = "http://localhost:" + port
-	}
-	if rateLimit = os.Getenv("RATE_LIMIT"); rateLimit == "" {
-		rateLimit = "20"
-	}
-	limit, err := strconv.Atoi(rateLimit)
+	port := envOrDefault("PORT", "8080")
+	limit, err := strconv.Atoi(envOrDefault("RATE_LIMIT", "20"))
 	if err != nil {
-		return nil, fmt.Errorf("RATE_LIMIT is not a valid integer")
-	}
-	if env = os.Getenv("ENV"); env == "" {
-		env = "dev"
+		return nil, fmt.Errorf("RATE_LIMIT is not a valid integer: %w", err)
 	}
 	return &Config{
 		DatabaseURL: databaseURL,
 		RedisURL:    redisURL,
 		Port:        port,
-		BaseURL:     baseURL,
+		BaseURL:     envOrDefault("BASE_URL", "http://localhost:"+port),
 		RateLimit:   limit,
-		Env:         env,
+		Env:         envOrDefault("ENV", "dev"),
 	}, nil
+}
+
+func envOrDefault(key, fallback string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return fallback
 }
