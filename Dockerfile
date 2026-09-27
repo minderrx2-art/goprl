@@ -10,7 +10,11 @@ RUN go mod download
 COPY . .
 
 # Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -o main main.go
+ARG COMMIT
+ARG BUILD_TIME
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -ldflags="-X goprl/internal/buildinfo.Commit=${COMMIT} -X goprl/internal/buildinfo.BuildTime=${BUILD_TIME}" \
+    -o main main.go
 
 # Distroless so it runs on my shitty free VM
 FROM gcr.io/distroless/static-debian12

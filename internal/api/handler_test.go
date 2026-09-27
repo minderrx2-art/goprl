@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"goprl/internal/buildinfo"
 	"goprl/internal/domain"
 	"goprl/internal/service"
 	"io"
@@ -81,7 +82,7 @@ func (m *mockBloom) Contains(item string) bool {
 var mockBaseURL = "http://test.com"
 
 func TestHandler_HandleHealth(t *testing.T) {
-	h := NewHandler(nil, &mockPinger{}, &mockPinger{})
+	h := NewHandler(nil, &mockPinger{err: errors.New("db down")}, &mockPinger{err: errors.New("redis down")})
 	req := httptest.NewRequest("GET", "/health", nil)
 	rr := httptest.NewRecorder()
 
@@ -90,8 +91,31 @@ func TestHandler_HandleHealth(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", rr.Code)
 	}
-	if rr.Body.String() != "OK" {
-		t.Errorf("expected OK, got %s", rr.Body.String())
+	if got := rr.Header().Get("Content-Type"); got != "application/json" {
+		t.Errorf("expected application/json, got %q", got)
+	}
+	if got := rr.Header().Get("Cache-Control"); got != "no-store" {
+		t.Errorf("expected no-store, got %q", got)
+	}
+	var resp healthResponse
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode health response: %v", err)
+	}
+	if resp.Status != "ok" {
+		t.Errorf("expected ok status, got %q", resp.Status)
+	}
+	want := buildinfo.Current()
+	if resp.Commit != want.Commit || resp.BuildTime != want.BuildTime || resp.GoVersion != want.GoVersion {
+		t.Errorf("unexpected build metadata: %+v", resp.Info)
+	}
+	if resp.StartedAt != want.StartedAt {
+		t.Errorf("expected stable startup time %q, got %q", want.StartedAt, resp.StartedAt)
+	}
+	if _, err := time.Parse(time.RFC3339, resp.StartedAt); err != nil {
+		t.Errorf("invalid startup time: %v", err)
+	}
+	if resp.UptimeSeconds < 0 || resp.UptimeSeconds > want.UptimeSeconds {
+		t.Errorf("unexpected uptime: %d", resp.UptimeSeconds)
 	}
 }
 
