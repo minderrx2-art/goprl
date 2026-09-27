@@ -9,6 +9,8 @@ import (
 
 func (h *Handler) handleResolve(w http.ResponseWriter, r *http.Request) {
 	code := r.PathValue("code")
+	// Clients must resolve again after the link's deadline instead of reusing a redirect.
+	w.Header().Set("Cache-Control", "no-store")
 
 	url, err := h.service.Resolve(r.Context(), code)
 	if err != nil {

@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"goprl/internal/domain"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -43,7 +42,8 @@ func (s *Store) GetByShortURL(ctx context.Context, ShortURL string) (*domain.URL
 	row := s.db.QueryRowContext(ctx, query, ShortURL)
 
 	var url domain.URL
-	err := row.Scan(&url.ID, &url.ShortURL, &url.OriginalURL, &url.CreatedAt, &url.ExpiresAt)
+	var expiresAt sql.NullTime
+	err := row.Scan(&url.ID, &url.ShortURL, &url.OriginalURL, &url.CreatedAt, &expiresAt)
 
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, err
@@ -53,8 +53,8 @@ func (s *Store) GetByShortURL(ctx context.Context, ShortURL string) (*domain.URL
 		return nil, domain.ErrURLNotFound
 	}
 
-	if url.ExpiresAt.Before(time.Now()) {
-		return nil, domain.ErrURLExpired
+	if expiresAt.Valid {
+		url.ExpiresAt = expiresAt.Time
 	}
 
 	return &url, nil
@@ -65,7 +65,8 @@ func (s *Store) GetByOriginalURL(ctx context.Context, originalURL string) (*doma
 	row := s.db.QueryRowContext(ctx, query, originalURL)
 
 	var url domain.URL
-	err := row.Scan(&url.ID, &url.ShortURL, &url.OriginalURL, &url.CreatedAt, &url.ExpiresAt)
+	var expiresAt sql.NullTime
+	err := row.Scan(&url.ID, &url.ShortURL, &url.OriginalURL, &url.CreatedAt, &expiresAt)
 
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, err
@@ -73,6 +74,9 @@ func (s *Store) GetByOriginalURL(ctx context.Context, originalURL string) (*doma
 
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, domain.ErrURLNotFound
+	}
+	if expiresAt.Valid {
+		url.ExpiresAt = expiresAt.Time
 	}
 
 	return &url, nil

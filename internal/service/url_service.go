@@ -37,13 +37,13 @@ func (s *URLService) Shorten(ctx context.Context, originalURL string) (*domain.U
 	}
 	if s.bloom.Contains(validURL) {
 		url, err := s.cache.GetURL(ctx, validURL)
-		if err == nil && url != nil {
+		if err == nil && url != nil && !isExpired(url, time.Now()) {
 			s.logger.Info("Bloom filter cache hit", "url", validURL)
 			url.ShortURL = s.baseURL + "/" + url.ShortURL
 			return url, nil
 		}
 		url, err = s.store.GetByOriginalURL(ctx, validURL)
-		if err == nil && url != nil {
+		if err == nil && url != nil && !isExpired(url, time.Now()) {
 			s.logger.Info("Bloom filter store hit", "url", validURL)
 			_ = s.cache.SetURL(ctx, validURL, url)
 			url.ShortURL = s.baseURL + "/" + url.ShortURL
@@ -58,7 +58,7 @@ func (s *URLService) Shorten(ctx context.Context, originalURL string) (*domain.U
 		OriginalURL: validURL,
 		ShortURL:    shortURL,
 		CreatedAt:   time.Now(),
-		ExpiresAt:   time.Now().Add(24 * time.Hour),
+		ExpiresAt:   time.Now().Add(7 * 24 * time.Hour),
 	}
 
 	if err := s.store.CreateURL(ctx, url); err != nil {
@@ -96,7 +96,7 @@ func (s *URLService) Resolve(ctx context.Context, code string) (*domain.URL, err
 	// Fast cache poke
 	url, err := s.cache.GetURL(ctx, code)
 	if err == nil && url != nil {
-		if !url.ExpiresAt.IsZero() && url.ExpiresAt.Before(time.Now()) {
+		if isExpired(url, time.Now()) {
 			s.logger.Info("Cache hit but expired", "code", code)
 			return nil, domain.ErrURLExpired
 		}
@@ -109,10 +109,13 @@ func (s *URLService) Resolve(ctx context.Context, code string) (*domain.URL, err
 	// Slow database lookup
 	url, err = s.store.GetByShortURL(ctx, code)
 	if err != nil {
+		return nil, err
+	}
+	if url == nil {
 		return nil, domain.ErrURLNotFound
 	}
 
-	if url.ExpiresAt.Before(time.Now()) {
+	if isExpired(url, time.Now()) {
 		return nil, domain.ErrURLExpired
 	}
 
@@ -123,6 +126,11 @@ func (s *URLService) Resolve(ctx context.Context, code string) (*domain.URL, err
 	}(*url)
 
 	return url, nil
+}
+
+// A zero timestamp represents a link without expiry. The deadline itself is expired.
+func isExpired(url *domain.URL, now time.Time) bool {
+	return !url.ExpiresAt.IsZero() && !now.Before(url.ExpiresAt)
 }
 
 const charset = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
