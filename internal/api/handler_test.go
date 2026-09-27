@@ -53,7 +53,7 @@ func (m *apiMockCache) SetURL(ctx context.Context, key string, value *domain.URL
 func (m *apiMockCache) Allow(ctx context.Context, key string, limit int, window time.Duration) error {
 	return nil
 }
-func (m *apiMockCache) Increment(ctx context.Context, key string) (int64, error) { return 1, nil }
+func (m *apiMockCache) NextShortCodeID(ctx context.Context) (int64, error) { return 1, nil }
 
 type mockPinger struct {
 	err error

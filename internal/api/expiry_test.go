@@ -74,7 +74,7 @@ func TestResolveExpiryAcrossStoragePaths(t *testing.T) {
 				}
 			}
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-			svc := service.New(postgres.New(db), cache, cache, nil, logger)
+			svc := service.New(postgres.New(db), cache, postgres.New(db), nil, logger)
 			h := New(svc, nil, nil, mockBaseURL)
 			req := httptest.NewRequest(http.MethodGet, "/abc", nil)
 			req.SetPathValue("code", "abc")

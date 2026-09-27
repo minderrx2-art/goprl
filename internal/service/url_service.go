@@ -27,9 +27,9 @@ type Cache interface {
 	SetURL(context.Context, string, *domain.URL) error
 }
 
-// Counter allocates monotonically increasing short-code values.
-type Counter interface {
-	Increment(context.Context, string) (int64, error)
+// Allocator supplies unique values for base62 short codes.
+type Allocator interface {
+	NextShortCodeID(context.Context) (int64, error)
 }
 
 // Bloom tracks original URLs seen by this process.
@@ -39,21 +39,20 @@ type Bloom interface {
 }
 
 type URLService struct {
-	store   Store
-	cache   Cache
-	counter Counter
-	bloom   Bloom
-	logger  *slog.Logger
+	store     Store
+	cache     Cache
+	allocator Allocator
+	bloom     Bloom
+	logger    *slog.Logger
 }
 
-func New(store Store, cache Cache, counter Counter, bloom Bloom, logger *slog.Logger) *URLService {
-	return &URLService{store: store, cache: cache, counter: counter, bloom: bloom, logger: logger}
+func New(store Store, cache Cache, allocator Allocator, bloom Bloom, logger *slog.Logger) *URLService {
+	return &URLService{store: store, cache: cache, allocator: allocator, bloom: bloom, logger: logger}
 }
 
 const (
-	linkLifetime          = 7 * 24 * time.Hour
-	cacheWriteTimeout     = 250 * time.Millisecond
-	maxAllocationAttempts = 8
+	linkLifetime      = 7 * 24 * time.Hour
+	cacheWriteTimeout = 250 * time.Millisecond
 )
 
 func (s *URLService) Shorten(ctx context.Context, originalURL string) (*domain.URL, error) {
@@ -62,7 +61,7 @@ func (s *URLService) Shorten(ctx context.Context, originalURL string) (*domain.U
 		return nil, err
 	}
 	if s.bloom.Contains(validURL) {
-		link, err := s.cache.GetURL(ctx, validURL)
+		link, err := s.cachedURL(ctx, validURL)
 		if err == nil && link != nil && !isExpired(link, time.Now()) {
 			return link, nil
 		}
@@ -75,37 +74,30 @@ func (s *URLService) Shorten(ctx context.Context, originalURL string) (*domain.U
 			return link, nil
 		}
 	}
-	for range maxAllocationAttempts {
-		counter, err := s.counter.Increment(ctx, "counter")
-		if err != nil {
-			return nil, fmt.Errorf("allocate short code: %w", err)
-		}
-		if counter <= 0 {
-			return nil, fmt.Errorf("allocate short code: counter must be positive, got %d", counter)
-		}
-		now := time.Now()
-		link := &domain.URL{
-			OriginalURL: validURL,
-			ShortCode:   generateBase62(counter),
-			CreatedAt:   now,
-			ExpiresAt:   now.Add(linkLifetime),
-		}
-		if err := s.store.CreateURL(ctx, link); err != nil {
-			if errors.Is(err, domain.ErrURLAlreadyExists) {
-				s.logger.Warn("short code collision", "code", link.ShortCode)
-				continue
-			}
-			return nil, fmt.Errorf("create short link: %w", err)
-		}
-		s.cacheLink(ctx, link, link.ShortCode, validURL)
-		s.bloom.Add(validURL)
-		return link, nil
+	id, err := s.allocator.NextShortCodeID(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("allocate short code: %w", err)
 	}
-	return nil, fmt.Errorf("allocate short code after %d attempts: %w", maxAllocationAttempts, domain.ErrURLAlreadyExists)
+	if id <= 0 {
+		return nil, fmt.Errorf("allocate short code: sequence value must be positive, got %d", id)
+	}
+	now := time.Now()
+	link := &domain.URL{
+		OriginalURL: validURL,
+		ShortCode:   generateBase62(id),
+		CreatedAt:   now,
+		ExpiresAt:   now.Add(linkLifetime),
+	}
+	if err := s.store.CreateURL(ctx, link); err != nil {
+		return nil, fmt.Errorf("create short link: %w", err)
+	}
+	s.cacheLink(ctx, link, link.ShortCode, validURL)
+	s.bloom.Add(validURL)
+	return link, nil
 }
 
 func (s *URLService) Resolve(ctx context.Context, code string) (*domain.URL, error) {
-	link, err := s.cache.GetURL(ctx, code)
+	link, err := s.cachedURL(ctx, code)
 	if err == nil && link != nil {
 		if isExpired(link, time.Now()) {
 			return nil, domain.ErrURLExpired
@@ -126,7 +118,17 @@ func (s *URLService) Resolve(ctx context.Context, code string) (*domain.URL, err
 	return link, nil
 }
 
+func (s *URLService) cachedURL(ctx context.Context, key string) (*domain.URL, error) {
+	if s.cache == nil {
+		return nil, domain.ErrURLNotFound
+	}
+	return s.cache.GetURL(ctx, key)
+}
+
 func (s *URLService) cacheLink(ctx context.Context, link *domain.URL, keys ...string) {
+	if s.cache == nil {
+		return
+	}
 	ctx, cancel := context.WithTimeout(ctx, cacheWriteTimeout)
 	defer cancel()
 	for _, key := range keys {

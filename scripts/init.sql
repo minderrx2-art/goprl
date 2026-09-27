@@ -7,3 +7,6 @@ CREATE TABLE IF NOT EXISTS urls (
 );
 
 CREATE INDEX IF NOT EXISTS idx_urls_short_code ON urls(short_code);
+
+-- Independent of urls_id_seq; values are encoded as base62 by the service.
+CREATE SEQUENCE IF NOT EXISTS short_code_seq AS BIGINT NO CYCLE;

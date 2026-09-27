@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -92,5 +93,33 @@ func TestCreateURL(t *testing.T) {
 
 	if err != nil {
 		t.Errorf("got error: %v, want nil", err)
+	}
+}
+
+func TestNextShortCodeID(t *testing.T) {
+	for _, fail := range []bool{false, true} {
+		db, mock, err := sqlmock.New()
+		if err != nil {
+			t.Fatal(err)
+		}
+		store := New(db)
+		query := mock.ExpectQuery("SELECT nextval\\('short_code_seq'\\)")
+		wantErr := errors.New("sequence unavailable")
+		if fail {
+			query.WillReturnError(wantErr)
+		} else {
+			query.WillReturnRows(sqlmock.NewRows([]string{"nextval"}).AddRow(3844))
+		}
+		id, err := store.NextShortCodeID(context.Background())
+		if fail && !errors.Is(err, wantErr) {
+			t.Fatalf("lost sequence error: %v", err)
+		}
+		if !fail && (err != nil || id != 3844) {
+			t.Fatalf("id=%d error=%v", id, err)
+		}
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Fatal(err)
+		}
+		db.Close()
 	}
 }

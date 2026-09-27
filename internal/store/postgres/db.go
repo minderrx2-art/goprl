@@ -84,3 +84,10 @@ func (s *Store) GetByOriginalURL(ctx context.Context, originalURL string) (*doma
 func (s *Store) Ping(ctx context.Context) error {
 	return s.db.PingContext(ctx)
 }
+
+// NextShortCodeID allocates independently of the urls row-ID sequence.
+func (s *Store) NextShortCodeID(ctx context.Context) (int64, error) {
+	var id int64
+	err := s.db.QueryRowContext(ctx, "SELECT nextval('short_code_seq')").Scan(&id)
+	return id, err
+}

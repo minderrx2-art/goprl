@@ -11,15 +11,36 @@ Features Implemented:
 
 Required env variables
 ```
-DATABASE_URL="postgres://{user}:{REDIS_PASSWORD}@{host}:{port}/{db_name}"
+DATABASE_URL="postgres://{user}:{DB_PASSWORD}@{host}:{port}/{db_name}"
 REDIS_URL="redis://:{password}@{host}:{port}/0"
 ```
-Optional (Required for docker)
+Optional (passwords required for the bundled Docker services)
 ```
 REDIS_PASSWORD={password}
 DB_PASSWORD={password}
 RATE_LIMIT={number}
 ```
+
+Short codes encode values from PostgreSQL's dedicated `short_code_seq` sequence
+using `0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ`. Row IDs are
+independent. Sequence gaps after failed inserts are expected; allocation never
+resets or retries collisions. This is the baseline for future ID allocator comparisons.
+
+Redis remains required for application startup and is used for link caching and
+rate limiting. Short-code allocation uses PostgreSQL. Cache failures during
+requests fall back to PostgreSQL, and rate limiter errors allow requests.
+Readiness checks both PostgreSQL and Redis.
+
+For an existing database, stop all application writers and apply the migration
+**before starting the updated app**:
+```
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/migrate_short_code_sequence.sql
+```
+The migration seeds a new sequence above the largest decoded existing short code,
+preserves all links, and leaves an existing sequence untouched on subsequent runs.
+Do not run `init.sql` first on an existing database: it creates an unseeded sequence.
+Docker's init script only runs for a fresh database volume; existing volumes need
+the migration too. Fresh databases use `scripts/init.sql`.
 
 Run via docker (recommended)
 ```
@@ -30,6 +51,10 @@ Run unit tests via:
 ```
 go test ./...
 ```
+
+To include sequence migration and concurrent allocation integration tests, point
+`GOPRL_TEST_DATABASE_URL` at a test PostgreSQL database whose user can create
+schemas, then run `go test -race ./...`. Tests create and remove private schemas.
 
 Testing URL shortening:
 ```

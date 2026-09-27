@@ -45,7 +45,7 @@ func newWithStores(ctx context.Context, cfg *config.Config,
 	}
 	bloom := store.NewBloomFilter(1000000, 3)
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	svc := service.New(postgresStore, redisStore, redisStore, bloom, logger)
+	svc := service.New(postgresStore, redisStore, postgresStore, bloom, logger)
 	return &App{
 		postgresStore: postgresStore,
 		redisStore:    redisStore,

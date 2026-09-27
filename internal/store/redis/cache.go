@@ -64,10 +64,6 @@ func (c *Cache) Allow(ctx context.Context, key string, limit int, window time.Du
 	return nil
 }
 
-func (c *Cache) Increment(ctx context.Context, key string) (int64, error) {
-	return c.rdb.Incr(ctx, key).Result()
-}
-
 func (c *Cache) Ping(ctx context.Context) error {
 	return c.rdb.Ping(ctx).Err()
 }
